@@ -46,6 +46,8 @@ public class PlayerController : MonoBehaviour
             transform.forward * _moveInput.y;
 
         _controller.Move(move * _moveSpeed * Time.deltaTime);
+
+        Debug.Log($"Move Input: {_moveInput}, Move Vector: {move}");
     }
 
     private void HandleGravity()
@@ -60,6 +62,7 @@ public class PlayerController : MonoBehaviour
     public void OnMove(InputAction.CallbackContext context)
     {
         _moveInput = context.ReadValue<Vector2>();
+            Debug.Log($"Move Input Received: {_moveInput}");
     }
 
     public void OnJump(InputAction.CallbackContext context)
@@ -69,5 +72,7 @@ public class PlayerController : MonoBehaviour
             _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
             onDoorOpened?.Raise();
         }
+
+        Debug.Log($"Jump Input Received: {context.performed}, Is Grounded: {_controller.isGrounded}");
     }
 }
