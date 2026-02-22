@@ -4,7 +4,11 @@ using UnityEngine.Events;
 [CreateAssetMenu(fileName = "NewGameEvent", menuName = "Events/GameEvent (Void)")]
 public class GameEvent : ScriptableObject
 {
-    private UnityEvent _event = new UnityEvent();
+    [SerializeField] private int _eventId;
+
+    private readonly UnityEvent _event = new();
+
+    public int EventId => _eventId;
 
     public void Raise()
     {

@@ -12,3 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3645bdd60d569fb4e8d7adb9ebeef288, type: 3}
   m_Name: OnLevelLoaded
   m_EditorClassIdentifier: Assembly-CSharp::GameEvent
+  _eventId: 1

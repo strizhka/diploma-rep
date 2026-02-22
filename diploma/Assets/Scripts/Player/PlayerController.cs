@@ -1,9 +1,11 @@
+using Mirror;
+using System.Linq;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Movement")]
     [SerializeField] private float _moveSpeed = 5f;
@@ -11,11 +13,12 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float _gravity = -9.8f;
 
     [Header("References")]
-    [SerializeField] private CinemachineCamera _cinCam;
+    [SerializeField] private Transform _head;
     [SerializeField] private GameEvent onDoorOpened;
 
     private CharacterController _controller;
 
+    private CinemachineCamera _cinCam;
     private Vector2 _moveInput;
     private Vector3 _velocity;
 
@@ -28,9 +31,26 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        if (!isLocalPlayer) return;
+
         HandleRotation();
         HandleMovement();
         HandleGravity();
+    }
+
+    public override void OnStartLocalPlayer()
+    {
+        if (!isLocalPlayer) return;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        _cinCam = FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None).FirstOrDefault(cam => cam.CompareTag("FPCamera"));
+
+        if (_cinCam == null)
+            Debug.LogWarning("Камера с тегом не найдена!");
+        _cinCam.Follow = _head;
+        _cinCam.LookAt = _head;
     }
 
     private void HandleRotation()
@@ -67,10 +87,12 @@ public class PlayerController : MonoBehaviour
 
     public void OnJump(InputAction.CallbackContext context)
     {
+        if (!isLocalPlayer) return;
+
         if (context.performed && _controller.isGrounded)
         {
             _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
-            onDoorOpened?.Raise();
+            NetworkGameEventDispatcher.Raise(onDoorOpened);
         }
 
         Debug.Log($"Jump Input Received: {context.performed}, Is Grounded: {_controller.isGrounded}");
