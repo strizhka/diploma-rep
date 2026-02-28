@@ -641,7 +641,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 407454463}
-  - component: {fileID: 407454462}
   - component: {fileID: 407454464}
   - component: {fileID: 407454465}
   m_Layer: 0
@@ -651,19 +650,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &407454462
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 407454461}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 85f9b16f5fa221f4e9e484e62cfa68b3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GraphManager
-  onDoorOpened: {fileID: 11400000, guid: 256149e39a7088344baa828f557fecf8, type: 2}
 --- !u!4 &407454463
 Transform:
   m_ObjectHideFlags: 0
