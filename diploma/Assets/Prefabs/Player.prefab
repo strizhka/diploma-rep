@@ -46,8 +46,10 @@ GameObject:
   - component: {fileID: 6454507612935613353}
   - component: {fileID: 3066779783571690987}
   - component: {fileID: 3878364380072594282}
+  - component: {fileID: 1266250532525754182}
   - component: {fileID: 3406585971018067862}
   - component: {fileID: 8017357174412231886}
+  - component: {fileID: 8185374363958541745}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -169,9 +171,7 @@ MonoBehaviour:
   _moveSpeed: 5
   _jumpForce: 2
   _gravity: -9.8
-  _cinCam: {fileID: 0}
   _head: {fileID: 8370505196322000340}
-  onDoorOpened: {fileID: 11400000, guid: 256149e39a7088344baa828f557fecf8, type: 2}
 --- !u!143 &3066779783571690987
 CharacterController:
   m_ObjectHideFlags: 0
@@ -239,7 +239,19 @@ MonoBehaviour:
     m_ActionId: d3152083-4e83-44d3-9e41-ef82f0ef52a1
     m_ActionName: 'PlayerGameplay/Move[/Keyboard/w,/Keyboard/s,/Keyboard/a,/Keyboard/d]'
   - m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 6454507612935613353}
+        m_TargetAssemblyTypeName: PlayerController, Assembly-CSharp
+        m_MethodName: OnInteract
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
     m_ActionId: 7ac66a5a-9120-4f27-8875-e046e796b364
     m_ActionName: 'PlayerGameplay/Interact[/Keyboard/e]'
   - m_PersistentCalls:
@@ -274,11 +286,42 @@ MonoBehaviour:
         m_CallState: 2
     m_ActionId: debd1c37-5acb-42fa-b3a0-38aad46e8615
     m_ActionName: 'PlayerGameplay/Look[/Mouse/delta]'
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 1266250532525754182}
+        m_TargetAssemblyTypeName: DebugInputHandler, Assembly-CSharp
+        m_MethodName: OnDebug
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+    m_ActionId: 63fb8e2c-f820-46fe-ae32-212c3fb0cc15
+    m_ActionName: 'PlayerGameplay/Debug[/Keyboard/f3]'
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
   m_DefaultActionMap: PlayerGameplay
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &1266250532525754182
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8699084346481010238}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ade9db363245dd44a4a920078de8fcd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DebugInputHandler
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
 --- !u!114 &3406585971018067862
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -330,3 +373,23 @@ MonoBehaviour:
   positionSensitivity: 0.01
   rotationSensitivity: 0.01
   scaleSensitivity: 0.01
+--- !u!114 &8185374363958541745
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8699084346481010238}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 623f4c08cc7986942aff633c8ee8a26f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionRaycaster
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  _interactionDistance: 5
+  _interactableLayer:
+    serializedVersion: 2
+    m_Bits: 8
+  _cameraTransform: {fileID: 8370505196322000340}

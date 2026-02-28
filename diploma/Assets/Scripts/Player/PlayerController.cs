@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(InteractionRaycaster))]
 public class PlayerController : NetworkBehaviour
 {
     [Header("Movement")]
@@ -14,10 +15,9 @@ public class PlayerController : NetworkBehaviour
 
     [Header("References")]
     [SerializeField] private Transform _head;
-    [SerializeField] private GameEvent onDoorOpened;
 
     private CharacterController _controller;
-
+    private InteractionRaycaster _interactionRaycaster;
     private CinemachineCamera _cinCam;
     private Vector2 _moveInput;
     private Vector3 _velocity;
@@ -25,6 +25,7 @@ public class PlayerController : NetworkBehaviour
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
+        _interactionRaycaster = GetComponent<InteractionRaycaster>();
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
@@ -45,10 +46,15 @@ public class PlayerController : NetworkBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        _cinCam = FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None).FirstOrDefault(cam => cam.CompareTag("FPCamera"));
+        _cinCam = FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None)
+            .FirstOrDefault(cam => cam.CompareTag("FPCamera"));
 
         if (_cinCam == null)
-            Debug.LogWarning("Камера с тегом не найдена!");
+        {
+            Debug.LogWarning("Камера с тегом FPCamera не найдена!");
+            return;
+        }
+
         _cinCam.Follow = _head;
         _cinCam.LookAt = _head;
     }
@@ -61,13 +67,8 @@ public class PlayerController : NetworkBehaviour
 
     private void HandleMovement()
     {
-        Vector3 move =
-            transform.right * _moveInput.x +
-            transform.forward * _moveInput.y;
-
+        Vector3 move = transform.right * _moveInput.x + transform.forward * _moveInput.y;
         _controller.Move(move * _moveSpeed * Time.deltaTime);
-
-        Debug.Log($"Move Input: {_moveInput}, Move Vector: {move}");
     }
 
     private void HandleGravity()
@@ -82,19 +83,19 @@ public class PlayerController : NetworkBehaviour
     public void OnMove(InputAction.CallbackContext context)
     {
         _moveInput = context.ReadValue<Vector2>();
-            Debug.Log($"Move Input Received: {_moveInput}");
     }
 
     public void OnJump(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer) return;
-
         if (context.performed && _controller.isGrounded)
-        {
             _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
-            NetworkGameEventDispatcher.Raise(onDoorOpened);
-        }
+    }
 
-        Debug.Log($"Jump Input Received: {context.performed}, Is Grounded: {_controller.isGrounded}");
+    // Привязать в Input System к кнопке E
+    public void OnInteract(InputAction.CallbackContext context)
+    {
+        if (!isLocalPlayer) return;
+        _interactionRaycaster.OnInteract(context);
     }
 }
