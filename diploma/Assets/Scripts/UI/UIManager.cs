@@ -1,4 +1,4 @@
-using TMPro;
+п»їusing TMPro;
 using UnityEngine;
 
 public class UIManager : MonoBehaviour
@@ -7,6 +7,6 @@ public class UIManager : MonoBehaviour
 
     public void ShowWinScreen()
     {
-        winPanel.text = "Дверь открыта";
+        winPanel.text = "Door Opened";
     }
 }
