@@ -2301,6 +2301,8 @@ MonoBehaviour:
   timeInterpolationGui: 0
   _waitingRoomPlayerPrefab: {fileID: 1346531423616042196, guid: aaf43888a623ccc429c1f096ead620c9, type: 3}
   _gamePlayerPrefab: {fileID: 8699084346481010238, guid: ff686f8b157ed9942847d82720e68402, type: 3}
+  _gameSceneNames:
+  - BaseMovement
 --- !u!114 &1433119274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2313,7 +2315,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 961e13f8f75656a4f9e67c027c869e14, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EdgegapRelayService
-  _apiToken: a95741c7-473a-4dd2-9707-8775a345b20f
 --- !u!114 &1433119275
 MonoBehaviour:
   m_ObjectHideFlags: 0

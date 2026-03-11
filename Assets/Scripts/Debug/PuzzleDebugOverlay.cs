@@ -4,7 +4,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PuzzleDebugOverlay : MonoBehaviour
+public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
 {
     [Header("Настройки отображения")]
     [SerializeField] private bool _showOnStart = true;
@@ -25,6 +25,9 @@ public class PuzzleDebugOverlay : MonoBehaviour
     private GUIStyle _labelStyle;
     private bool _stylesInitialized;
 
+    private PuzzleManager _cachedPuzzleManager;
+    private bool _puzzleManagerSearched;
+
     private struct LogEntry
     {
         public string Message;
@@ -32,18 +35,27 @@ public class PuzzleDebugOverlay : MonoBehaviour
         public float Time;
     }
 
-    private static PuzzleDebugOverlay _instance;
-
-    private void Awake()
+    protected override void Awake()
     {
-        _instance = this;
+        base.Awake();
         _isVisible = _showOnStart;
+    }
+
+    public static void ClearLog()
+    {
+        _log.Clear();
+    }
+
+    public void InvalidateCache()
+    {
+        _cachedPuzzleManager = null;
+        _puzzleManagerSearched = false;
     }
 
     public static void ToggleStatic()
     {
-        if (_instance != null)
-            _instance._isVisible = !_instance._isVisible;
+        if (HasInstance)
+            Instance._isVisible = !Instance._isVisible;
     }
 
     public static void Log(string message, DebugLevel level = DebugLevel.Info)
@@ -76,7 +88,6 @@ public class PuzzleDebugOverlay : MonoBehaviour
 
     public enum DebugLevel { Info, Ok, Warning, Error }
 
-
     private void Start()
     {
         _isVisible = _showOnStart;
@@ -86,6 +97,16 @@ public class PuzzleDebugOverlay : MonoBehaviour
     {
         if (context.performed)
             _isVisible = !_isVisible;
+    }
+
+    private PuzzleManager GetPuzzleManager()
+    {
+        if (_cachedPuzzleManager == null && !_puzzleManagerSearched)
+        {
+            _cachedPuzzleManager = FindAnyObjectByType<PuzzleManager>();
+            _puzzleManagerSearched = true;
+        }
+        return _cachedPuzzleManager;
     }
 
     private void OnGUI()
@@ -98,7 +119,6 @@ public class PuzzleDebugOverlay : MonoBehaviour
         float screenH = Screen.height;
 
         DrawNetworkPanel(10, 10, 280, screenH - 20);
-
         DrawLogPanel(screenW - 410, 10, 400, screenH - 20);
     }
 
@@ -133,7 +153,7 @@ public class PuzzleDebugOverlay : MonoBehaviour
         GUILayout.Space(8);
         DrawColoredLabel("═══ ПАЗЛЫ ═══", _headerColor);
 
-        var manager = FindAnyObjectByType<PuzzleManager>();
+        var manager = GetPuzzleManager(); // ← кэшированный вызов
         if (manager != null)
         {
             foreach (var info in manager.GetDebugInfo())

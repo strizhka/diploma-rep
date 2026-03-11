@@ -40,6 +40,8 @@ public class InteractableObject : NetworkBehaviour
     public override void OnStartClient()
     {
         InteractableObjectRegistry.Register(_objectId, this);
+
+        SyncIndexFromState(_currentState);
     }
 
     public override void OnStopServer()
@@ -77,7 +79,15 @@ public class InteractableObject : NetworkBehaviour
 
     private void OnStateSync(string oldState, string newState)
     {
+        SyncIndexFromState(newState);
+
         OnStateChanged?.Invoke(newState);
         PuzzleDebugOverlay.Log($"[{_objectId}] {oldState} → {newState}", PuzzleDebugOverlay.DebugLevel.Ok);
+    }
+
+    private void SyncIndexFromState(string state)
+    {
+        int index = System.Array.IndexOf(_statesCycle, state);
+        _currentStateIndex = index >= 0 ? index : 0;
     }
 }

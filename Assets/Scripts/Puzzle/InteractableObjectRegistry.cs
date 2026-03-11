@@ -40,4 +40,8 @@ public static class InteractableObjectRegistry
     {
         return _objects;
     }
+
+    public static void ClearAll() => _objects.Clear();
+
+    public static int Count => _objects.Count;
 }

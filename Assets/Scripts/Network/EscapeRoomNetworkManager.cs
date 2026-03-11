@@ -11,12 +11,26 @@ public class EscapeRoomNetworkManager : NetworkManager
     [SerializeField] private GameObject _waitingRoomPlayerPrefab;
     [SerializeField] private GameObject _gamePlayerPrefab;
 
+    [Header("Игровые сцены")]
+    [Tooltip("Имена сцен, в которых спавнится игровой префаб (не WaitingRoom). " +
+             "Например: BaseMovement, Tutorial, Level_01")]
+    [SerializeField] private string[] _gameSceneNames = { "BaseMovement" };
+
     private int _playerCount = 0;
 
     public override void OnServerSceneChanged(string sceneName)
     {
         base.OnServerSceneChanged(sceneName);
         _playerCount = 0;
+
+        InteractableObjectRegistry.ClearAll();
+
+        PuzzleDebugOverlay.ClearLog();
+
+        if (PuzzleDebugOverlay.HasInstance)
+            PuzzleDebugOverlay.Instance.InvalidateCache();
+
+        PuzzleDebugOverlay.Log($"[Network] Сцена загружена: {sceneName}");
     }
 
     public override void OnServerAddPlayer(NetworkConnectionToClient conn)
@@ -61,7 +75,13 @@ public class EscapeRoomNetworkManager : NetworkManager
 
     private bool IsGameScene()
     {
-        return SceneManager.GetActiveScene().name == "BaseMovement";
+        string current = SceneManager.GetActiveScene().name;
+        foreach (var sceneName in _gameSceneNames)
+        {
+            if (current == sceneName)
+                return true;
+        }
+        return false;
     }
 
     public override void Awake()

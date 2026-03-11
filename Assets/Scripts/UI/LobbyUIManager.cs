@@ -1,9 +1,8 @@
 ﻿using Mirror;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
-public class LobbyUIManager : MonoBehaviour
+public class LobbyUIManager : Singleton<LobbyUIManager>
 {
     [Header("Панели")]
     [SerializeField] private GameObject _mainMenuPanel;
@@ -16,12 +15,11 @@ public class LobbyUIManager : MonoBehaviour
     [Header("Статус")]
     [SerializeField] private TextMeshProUGUI _connectionStatusText;
 
-    public static bool InstanceIsNull => _instance == null;
-    private static LobbyUIManager _instance;
+    public static bool InstanceIsNull => !HasInstance;
 
-    private void Awake()
+    protected override void Awake()
     {
-        _instance = this;
+        base.Awake(); // ← Singleton<T>.Awake()
     }
 
     private void Start()
@@ -45,7 +43,6 @@ public class LobbyUIManager : MonoBehaviour
     {
         ShowMainMenu();
     }
-
 
     public void OnClickStartHost()
     {

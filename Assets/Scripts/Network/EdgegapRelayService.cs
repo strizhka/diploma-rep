@@ -5,19 +5,18 @@ using Edgegap;
 using UnityEngine;
 using UnityEngine.Networking;
 
-public class EdgegapRelayService : MonoBehaviour
+public class EdgegapRelayService : Singleton<EdgegapRelayService>
 {
     private string _apiToken = "";
 
     private const string ApiBase = "https://api.edgegap.com/v1/relays/sessions";
     private const int RequestTimeout = 10;
 
-    private static EdgegapRelayService _instance;
+    protected override bool Persist => true;
 
-
-    private void Awake()
+    protected override void Awake()
     {
-        _instance = this;
+        base.Awake();
 
         if (string.IsNullOrEmpty(_apiToken))
         {
@@ -27,15 +26,24 @@ public class EdgegapRelayService : MonoBehaviour
         }
     }
 
-
     public static void CreateRoom(Action<string> onCodeReady, Action<string> onError)
     {
-        _instance.StartCoroutine(_instance.CreateRoomCoroutine(onCodeReady, onError));
+        if (!HasInstance)
+        {
+            onError?.Invoke("EdgegapRelayService не инициализирован.");
+            return;
+        }
+        Instance.StartCoroutine(Instance.CreateRoomCoroutine(onCodeReady, onError));
     }
 
     public static void JoinRoom(string code, Action onReady, Action<string> onError)
     {
-        _instance.StartCoroutine(_instance.JoinRoomCoroutine(code, onReady, onError));
+        if (!HasInstance)
+        {
+            onError?.Invoke("EdgegapRelayService не инициализирован.");
+            return;
+        }
+        Instance.StartCoroutine(Instance.JoinRoomCoroutine(code, onReady, onError));
     }
 
 
@@ -215,9 +223,10 @@ public class EdgegapRelayService : MonoBehaviour
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
         StopAllCoroutines();
+        base.OnDestroy();
     }
 
     private void OnApplicationQuit()

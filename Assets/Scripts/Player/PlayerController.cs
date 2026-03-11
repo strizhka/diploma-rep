@@ -32,7 +32,7 @@ public class PlayerController : NetworkBehaviour
 
     private void Update()
     {
-        if (!isLocalPlayer) return;
+        if (!isLocalPlayer || _cinCam == null) return;
 
         HandleRotation();
         HandleMovement();
@@ -82,6 +82,7 @@ public class PlayerController : NetworkBehaviour
 
     public void OnMove(InputAction.CallbackContext context)
     {
+        if (!isLocalPlayer) return;
         _moveInput = context.ReadValue<Vector2>();
     }
 

@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class WaitingRoomUI : MonoBehaviour
+public class WaitingRoomUI : Singleton<WaitingRoomUI>
 {
     [Header("Имена")]
     [SerializeField] private TMP_InputField _myNameInput;
@@ -21,14 +21,12 @@ public class WaitingRoomUI : MonoBehaviour
 
     private bool _iAmReady = false;
 
-    private static WaitingRoomUI _instance;
-
-    private void Awake()
-    {
-        _instance = this;
-    }
-
     private static string _pendingCode;
+
+    protected override void Awake()
+    {
+        base.Awake();
+    }
 
     private void Start()
     {
@@ -50,44 +48,44 @@ public class WaitingRoomUI : MonoBehaviour
 
     public static void OnOtherPlayerNotReady()
     {
-        if (_instance == null) return;
-        _instance._otherPlayerStatus.text = "не готов";
+        if (!HasInstance) return;
+        Instance._otherPlayerStatus.text = "не готов";
     }
 
     public static void OnOtherPlayerDisconnected()
     {
-        if (_instance == null) return;
-        _instance._otherPlayerNameText.text = "Ожидание игрока...";
-        _instance._otherPlayerStatus.text = "";
-        _instance._readyButton.interactable = false;
+        if (!HasInstance) return;
+        Instance._otherPlayerNameText.text = "Ожидание игрока...";
+        Instance._otherPlayerStatus.text = "";
+        Instance._readyButton.interactable = false;
     }
 
     public static void ShowWithCode(string code)
     {
-        Debug.Log($"[WaitingRoom] ShowWithCode. code={code}, _instance null={_instance == null}");
+        Debug.Log($"[WaitingRoom] ShowWithCode. code={code}, HasInstance={HasInstance}");
 
-        if (_instance == null)
+        if (!HasInstance)
         {
             _pendingCode = code;
             return;
         }
 
-        _instance.gameObject.SetActive(true);
-        _instance._roomCodeText.text = code;
+        Instance.gameObject.SetActive(true);
+        Instance._roomCodeText.text = code;
     }
 
     public static void OnOtherPlayerJoined(string name)
     {
-        if (_instance == null) return;
-        _instance._otherPlayerNameText.text = name;
-        _instance._otherPlayerStatus.text = "подключён";
-        _instance._readyButton.interactable = true;
+        if (!HasInstance) return;
+        Instance._otherPlayerNameText.text = name;
+        Instance._otherPlayerStatus.text = "подключён";
+        Instance._readyButton.interactable = true;
     }
 
     public static void OnOtherPlayerReady()
     {
-        if (_instance == null) return;
-        _instance._otherPlayerStatus.text = "готов";
+        if (!HasInstance) return;
+        Instance._otherPlayerStatus.text = "готов";
     }
 
     private void OnReadyClicked()

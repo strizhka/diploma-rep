@@ -7,11 +7,28 @@ public class NetworkGameEventDispatcher : NetworkBehaviour
 
     private void Awake()
     {
+        if (_instance != null && _instance != this)
+        {
+            Debug.LogWarning("[NetworkGameEventDispatcher] Дубликат уничтожен.");
+            Destroy(gameObject);
+            return;
+        }
         _instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (_instance == this)
+            _instance = null;
     }
 
     public static void Raise(GameEvent gameEvent)
     {
+        if (_instance == null)
+        {
+            Debug.LogError("[NetworkGameEventDispatcher] Instance не существует. Событие не отправлено.");
+            return;
+        }
         _instance.CmdRaiseEvent(gameEvent.EventId);
     }
 
