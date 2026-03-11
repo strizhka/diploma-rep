@@ -2,7 +2,13 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-public class InteractableObject : NetworkBehaviour
+/// <summary>
+/// Интерактивный объект с циклическими состояниями и сетевой синхронизацией.
+///
+/// ИЗМЕНЕНИЕ: реализует IFocusable — InteractionRaycaster работает через интерфейс.
+/// Вся остальная логика без изменений.
+/// </summary>
+public class InteractableObject : NetworkBehaviour, IFocusable
 {
     [Header("Идентификация")]
     [SerializeField] private string _objectId;
@@ -40,7 +46,6 @@ public class InteractableObject : NetworkBehaviour
     public override void OnStartClient()
     {
         InteractableObjectRegistry.Register(_objectId, this);
-
         SyncIndexFromState(_currentState);
     }
 
@@ -55,11 +60,15 @@ public class InteractableObject : NetworkBehaviour
             InteractableObjectRegistry.Unregister(_objectId);
     }
 
+    // ──── IFocusable ────
+
     public void SetHighlight(bool enabled)
     {
         var outline = GetComponentInChildren<OutlineEffect>();
         outline?.SetHighlight(enabled);
     }
+
+    // ──── Взаимодействие ────
 
     public void Interact()
     {
@@ -70,7 +79,6 @@ public class InteractableObject : NetworkBehaviour
         _onInteractEvent?.Raise(new InteractionData(_objectId, nextState));
     }
 
-
     [Server]
     public void ApplyState(string newState)
     {
@@ -80,7 +88,6 @@ public class InteractableObject : NetworkBehaviour
     private void OnStateSync(string oldState, string newState)
     {
         SyncIndexFromState(newState);
-
         OnStateChanged?.Invoke(newState);
         PuzzleDebugOverlay.Log($"[{_objectId}] {oldState} → {newState}", PuzzleDebugOverlay.DebugLevel.Ok);
     }
