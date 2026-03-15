@@ -15,5 +15,5 @@ MonoBehaviour:
   ItemId: Test_RedBall
   DisplayName: Test_RedBall
   CanCollect: 1
-  PreviewPrefab: {fileID: 919132149155446097, guid: 25f03344dfdd844f88e89487c558fe35, type: 3}
-  Icon: {fileID: 21300000, guid: 13ba34da9011744c884f459ce4699444, type: 3}
+  PreviewPrefab: {fileID: 1493238085931503692, guid: 0dcf6b207b87e304ca36acbd7c0bdcde, type: 3}
+  Icon: {fileID: 21300000, guid: 9e57341fde7d4324f94702b63cbb842d, type: 3}

@@ -3,70 +3,37 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Инвентарь игрока. NetworkBehaviour — синхронизирует список предметов и экипированный предмет.
-///
-/// Механика:
-/// - _items: SyncList всех собранных предметов (по ItemId)
-/// - _heldItemId: SyncVar — какой предмет в руках ("" = пустые руки)
-/// - При сборе: если руки пусты — автоматически экипируется
-///
-/// ЗАВИСИМОСТИ:
-/// - ItemRegistry (SO) — назначается в инспекторе для lookup ItemDefinition по ID
-/// - InspectableObject на сцене — сервер вызывает Collect() при сборе
-///
-/// НАСТРОЙКА:
-/// 1. Добавь на Player-префаб
-/// 2. Назначь ItemRegistry в инспекторе
-/// 3. (Опционально) Назначь _holdPoint — дочерний Transform для отображения предмета в руках
-/// </summary>
 public class PlayerInventory : NetworkBehaviour
 {
     [Header("Данные")]
     [SerializeField] private ItemRegistry _itemRegistry;
-
+    
     [Header("Визуал (опционально)")]
-    [Tooltip("Точка крепления предмета в руках. Дочерний Transform камеры или Head.")]
     [SerializeField] private Transform _holdPoint;
-
-    // ──── Синхронизация ────
-
-    /// <summary>
-    /// Список ID всех собранных предметов. Синхронизируется Mirror.
-    /// </summary>
+    
+    [SerializeField] private Vector3 _holdOffset = new Vector3(0.35f, -0.3f, 0.5f);
+    [SerializeField] private Vector3 _holdRotation = Vector3.zero;
+    
     private readonly SyncList<string> _items = new();
 
-    /// <summary>
-    /// ID предмета в руках. "" = пустые руки.
-    /// </summary>
     [SyncVar(hook = nameof(OnHeldItemChanged))]
     private string _heldItemId = "";
-
-    // Локальный экземпляр модели в руках
+    
     private GameObject _heldVisualInstance;
-
-    // ──── Публичный API ────
+    private bool _visualHidden;
 
     public IReadOnlyList<string> Items => _items;
     public string HeldItemId => _heldItemId;
     public int Count => _items.Count;
     public ItemRegistry Registry => _itemRegistry;
 
-    /// <summary>
-    /// Вызывается при изменении содержимого инвентаря (для обновления UI).
-    /// </summary>
     public event Action OnInventoryChanged;
-
-    // ──────────────────────── LIFECYCLE ────────────────────────
 
     public override void OnStartClient()
     {
         base.OnStartClient();
-
-        // SyncList callback — вызывается при любом изменении списка
         _items.Callback += OnItemsListChanged;
 
-        // Если late-join и в руках уже есть предмет — показать
         if (isLocalPlayer && !string.IsNullOrEmpty(_heldItemId))
             UpdateHeldVisual(_heldItemId);
     }
@@ -78,16 +45,9 @@ public class PlayerInventory : NetworkBehaviour
         base.OnStopClient();
     }
 
-    // ──────────────────────── СБОР ПРЕДМЕТА ────────────────────────
-
-    /// <summary>
-    /// Подобрать предмет со сцены. Вызывается локальным игроком.
-    /// Отправляет команду на сервер с NetworkIdentity объекта.
-    /// </summary>
     public void PickupItem(InspectableObject obj)
     {
         if (obj == null || !obj.CanCollect || obj.IsCollected) return;
-
         CmdPickupItem(obj.netIdentity, obj.ItemDefinition.ItemId);
     }
 
@@ -107,13 +67,9 @@ public class PlayerInventory : NetworkBehaviour
             return;
         }
 
-        // Помечаем объект как собранный (SyncVar скроет у всех клиентов)
         inspectable.Collect();
-
-        // Добавляем в инвентарь
         _items.Add(itemId);
 
-        // Если руки пусты — автоматически экипируем
         if (string.IsNullOrEmpty(_heldItemId))
             _heldItemId = itemId;
 
@@ -122,14 +78,8 @@ public class PlayerInventory : NetworkBehaviour
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
-    // ──────────────────────── ЭКИПИРОВКА ────────────────────────
-
-    /// <summary>
-    /// Взять предмет из инвентаря в руки. "" = убрать предмет из рук (пустые руки).
-    /// </summary>
     public void EquipItem(string itemId)
     {
-        // Валидация: предмет должен быть в инвентаре (или "" для пустых рук)
         if (!string.IsNullOrEmpty(itemId) && !_items.Contains(itemId))
         {
             Debug.LogWarning($"[Inventory] Предмет '{itemId}' не в инвентаре.");
@@ -143,41 +93,39 @@ public class PlayerInventory : NetworkBehaviour
     private void CmdEquipItem(string itemId)
     {
         _heldItemId = itemId;
-        PuzzleDebugOverlay.Log($"[Inventory] Экипирован: '{(string.IsNullOrEmpty(itemId) ? "пусто" : itemId)}'");
+        PuzzleDebugOverlay.Log(
+            $"[Inventory] Экипирован: '{(string.IsNullOrEmpty(itemId) ? "пусто" : itemId)}'");
     }
 
-    // ──────────────────────── УТИЛИТЫ ────────────────────────
+    public bool HasItem(string itemId) => _items.Contains(itemId);
 
-    /// <summary>
-    /// Проверить наличие предмета в инвентаре.
-    /// </summary>
-    public bool HasItem(string itemId)
-    {
-        return _items.Contains(itemId);
-    }
-
-    /// <summary>
-    /// Получить ItemDefinition по индексу в инвентаре.
-    /// </summary>
     public ItemDefinition GetItemAt(int index)
     {
         if (index < 0 || index >= _items.Count) return null;
         return _itemRegistry?.Get(_items[index]);
     }
 
-    /// <summary>
-    /// Получить ItemDefinition по ID.
-    /// </summary>
     public ItemDefinition GetItemDefinition(string itemId)
     {
         return _itemRegistry?.Get(itemId);
     }
-
-    // ──────────────────────── ВИЗУАЛ В РУКАХ ────────────────────────
+    
+    public void HideHeldVisual()
+    {
+        _visualHidden = true;
+        if (_heldVisualInstance != null)
+            _heldVisualInstance.SetActive(false);
+    }
+    
+    public void ShowHeldVisual()
+    {
+        _visualHidden = false;
+        UpdateHeldVisual(_heldItemId);
+    }
 
     private void OnHeldItemChanged(string oldId, string newId)
     {
-        if (isLocalPlayer)
+        if (isLocalPlayer && !_visualHidden)
             UpdateHeldVisual(newId);
 
         OnInventoryChanged?.Invoke();
@@ -193,12 +141,14 @@ public class PlayerInventory : NetworkBehaviour
         if (def == null || def.PreviewPrefab == null) return;
 
         _heldVisualInstance = Instantiate(def.PreviewPrefab, _holdPoint);
-        _heldVisualInstance.transform.localPosition = Vector3.zero;
-        _heldVisualInstance.transform.localRotation = Quaternion.identity;
+        _heldVisualInstance.transform.localPosition = _holdOffset;
+        _heldVisualInstance.transform.localRotation = Quaternion.Euler(_holdRotation);
 
-        // Убираем сетевые компоненты с визуальной копии
         foreach (var netId in _heldVisualInstance.GetComponentsInChildren<Mirror.NetworkIdentity>())
             Destroy(netId);
+        
+        if (_visualHidden)
+            _heldVisualInstance.SetActive(false);
 
         PuzzleDebugOverlay.Log($"[Inventory] Визуал в руках: '{itemId}'");
     }
@@ -211,8 +161,6 @@ public class PlayerInventory : NetworkBehaviour
             _heldVisualInstance = null;
         }
     }
-
-    // ──────────────────────── SYNC CALLBACKS ────────────────────────
 
     private void OnItemsListChanged(SyncList<string>.Operation op, int index, string oldItem, string newItem)
     {

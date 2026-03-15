@@ -1,91 +1,57 @@
+using DG.Tweening;
 using Unity.Cinemachine;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-/// <summary>
-/// Управляет режимом осмотра предметов. Полностью локальный — не синхронизируется по сети.
-///
-/// Два режима:
-/// 1. Осмотр предмета со сцены (StartWorldInspection)
-///    — объект перемещается перед камерой, можно вращать мышью
-///    — Q = выход (объект возвращается на место)
-///    — G = забрать (если CanCollect, передаёт в PlayerInventory)
-///
-/// 2. Осмотр предмета из инвентаря (StartInventoryInspection)
-///    — создаётся временный превью-объект
-///    — Q = выход (превью уничтожается)
-///    — G не работает (предмет уже в инвентаре)
-///
-/// НАСТРОЙКА:
-/// 1. Добавь компонент на Player-префаб
-/// 2. Создай Canvas с Image (чёрный, alpha=0) → назначь в _fadeImage
-/// 3. _fadeImage Canvas должен быть ScreenSpace-Overlay, sortingOrder > 0
-/// 4. Добавь Input Actions: InspectExit (Q), Grab (G), Look (Mouse Delta)
-///
-/// ЗАВИСИМОСТИ на Player-префабе:
-/// - PlayerInventory (для G — забрать предмет)
-/// - InteractionRaycaster (отключается во время осмотра)
-/// </summary>
 public class InspectionController : MonoBehaviour
 {
     [Header("Позиционирование")]
-    [Tooltip("Расстояние от камеры до осматриваемого объекта")]
     [SerializeField] private float _inspectionDistance = 0.6f;
-
-    [Tooltip("Скорость вращения объекта мышью")]
     [SerializeField] private float _rotateSpeed = 0.4f;
 
     [Header("Затемнение")]
-    [Tooltip("UI Image для затемнения фона. Canvas: ScreenSpace-Overlay.")]
     [SerializeField] private Image _fadeImage;
-
-    [Tooltip("Целевая прозрачность затемнения (0-1)")]
     [SerializeField] private float _fadeAlpha = 0.75f;
+    [SerializeField] private float _fadeDuration = 0.3f;
 
-    [Tooltip("Скорость затемнения/просветления")]
-    [SerializeField] private float _fadeSpeed = 5f;
-
-    // ──── Состояние ────
+    [Header("Inspection Layer")]
+    [SerializeField] private int _inspectionLayer = 31;
+    
     private bool _isActive;
-    private bool _isWorldMode; // true = со сцены, false = из инвентаря
-    private InspectableObject _worldObject; // объект со сцены (только в world mode)
+    private bool _isWorldMode;
+    private InspectableObject _worldObject;
 
-    // Трансформ осматриваемого объекта (сценный или превью)
     private Transform _inspectedTransform;
-    private GameObject _previewInstance; // только для inventory mode
-
-    // Сохранённая позиция/поворот сценного объекта
+    private GameObject _previewInstance;
+    private int _originalLayer;
+    private int[] _originalChildLayers;
+    
     private Vector3 _originalPosition;
     private Quaternion _originalRotation;
     private Transform _originalParent;
-
-    // Ссылки
+    
     private Transform _cameraTransform;
-    private CinemachineCamera _cinemachineCamera;
+    private Camera _mainCamera;
+    private Camera _inspectionCamera;
     private CinemachineInputAxisController _inputAxisController;
-
-    // Целевое значение fade alpha (плавная анимация)
-    private float _targetFadeAlpha;
-
-    // Вращение мышью
+    
     private Vector2 _rotateInput;
+    
+    private const string TweenFadeId = "InspectionFade";
 
     public bool IsActive => _isActive;
-
-    /// <summary>
-    /// Текущий осматриваемый объект со сцены (null если не в world mode).
-    /// Используется PlayerController для передачи в PlayerInventory при G.
-    /// </summary>
     public InspectableObject CurrentWorldObject => _isWorldMode ? _worldObject : null;
+    
+    public event System.Action OnInspectionStarted;
+    public event System.Action OnInspectionEnded;
 
     private void Awake()
     {
         if (_fadeImage != null)
         {
-            var color = _fadeImage.color;
-            color.a = 0f;
-            _fadeImage.color = color;
+            var c = _fadeImage.color;
+            c.a = 0f;
+            _fadeImage.color = c;
             _fadeImage.gameObject.SetActive(false);
         }
     }
@@ -95,31 +61,36 @@ public class InspectionController : MonoBehaviour
         if (!_isActive) return;
 
         HandleRotation();
-        UpdateFade();
         KeepPositionInFrontOfCamera();
     }
 
-    // ──────────────────────── PUBLIC API ────────────────────────
+    private void OnDestroy()
+    {
+        DOTween.Kill(TweenFadeId);
 
-    /// <summary>
-    /// Инициализация. Вызывается из PlayerController.OnStartLocalPlayer().
-    /// </summary>
+        if (_inspectionCamera != null)
+            Destroy(_inspectionCamera.gameObject);
+    }
+
     public void Initialize(Transform cameraTransform)
     {
         _cameraTransform = cameraTransform;
+        _mainCamera = cameraTransform.GetComponent<Camera>();
+        
+        if (_mainCamera == null)
+            _mainCamera = Camera.main;
 
-        // Находим Cinemachine компоненты для отключения ввода камеры
-        var cinCam = _cameraTransform.GetComponent<CinemachineCamera>();
+        var cinCam = cameraTransform.GetComponent<CinemachineCamera>();
         if (cinCam != null)
-        {
-            _cinemachineCamera = cinCam;
             _inputAxisController = cinCam.GetComponent<CinemachineInputAxisController>();
-        }
+
+        CreateInspectionCamera();
+        ConfigureFadeCanvas();
+        
+        if (_mainCamera != null)
+            _mainCamera.cullingMask &= ~(1 << _inspectionLayer);
     }
 
-    /// <summary>
-    /// Начать осмотр объекта со сцены.
-    /// </summary>
     public void StartWorldInspection(InspectableObject obj)
     {
         if (_isActive || obj == null || obj.IsCollected) return;
@@ -129,25 +100,20 @@ public class InspectionController : MonoBehaviour
         _worldObject = obj;
         _inspectedTransform = obj.transform;
 
-        // Запоминаем оригинальное положение
         _originalPosition = obj.transform.position;
         _originalRotation = obj.transform.rotation;
         _originalParent = obj.transform.parent;
 
-        // Убираем подсветку
         obj.SetHighlight(false);
+        
+        SaveAndSetLayer(_inspectedTransform, _inspectionLayer);
 
-        // Перемещаем перед камерой
         PositionInFrontOfCamera();
-
         EnterInspectionMode();
 
         PuzzleDebugOverlay.Log($"[Inspection] Осмотр: {obj.ObjectId} (со сцены)");
     }
 
-    /// <summary>
-    /// Начать осмотр предмета из инвентаря (создаёт превью).
-    /// </summary>
     public void StartInventoryInspection(ItemDefinition item)
     {
         if (_isActive || item == null || item.PreviewPrefab == null) return;
@@ -156,113 +122,100 @@ public class InspectionController : MonoBehaviour
         _isWorldMode = false;
         _worldObject = null;
 
-        // Создаём превью
         _previewInstance = Instantiate(item.PreviewPrefab);
         _inspectedTransform = _previewInstance.transform;
 
-        // Убираем сетевые компоненты с превью (если случайно есть)
         foreach (var netId in _previewInstance.GetComponentsInChildren<Mirror.NetworkIdentity>())
             Destroy(netId);
+        
+        SetLayerRecursive(_previewInstance, _inspectionLayer);
 
         PositionInFrontOfCamera();
-
         EnterInspectionMode();
 
         PuzzleDebugOverlay.Log($"[Inspection] Осмотр: {item.ItemId} (из инвентаря)");
     }
 
-    /// <summary>
-    /// Завершить осмотр. Возвращает объект на место (world) или уничтожает превью (inventory).
-    /// </summary>
     public void StopInspection()
     {
         if (!_isActive) return;
 
         if (_isWorldMode && _inspectedTransform != null)
         {
-            // Возвращаем сценный объект на место
+            RestoreLayer(_inspectedTransform);
             _inspectedTransform.SetParent(_originalParent);
             _inspectedTransform.position = _originalPosition;
             _inspectedTransform.rotation = _originalRotation;
         }
 
-        CleanupPreview();
-        ExitInspectionMode();
-
-        _isActive = false;
-        _isWorldMode = false;
-        _worldObject = null;
-        _inspectedTransform = null;
-
-        PuzzleDebugOverlay.Log("[Inspection] Осмотр завершён");
+        CleanupAndExit();
     }
 
-    /// <summary>
-    /// Завершить осмотр БЕЗ возврата объекта на место (объект забран в инвентарь).
-    /// Вызывается из PlayerController при успешном сборе.
-    /// </summary>
     public void StopInspectionCollected()
     {
         if (!_isActive) return;
-
-        // Не возвращаем объект — он будет скрыт через SyncVar
-        CleanupPreview();
-        ExitInspectionMode();
-
-        _isActive = false;
-        _isWorldMode = false;
-        _worldObject = null;
-        _inspectedTransform = null;
-
-        PuzzleDebugOverlay.Log("[Inspection] Осмотр завершён (предмет собран)");
+        
+        CleanupAndExit();
     }
 
-    // ──────────────────────── INPUT ────────────────────────
-
-    /// <summary>
-    /// Ввод мыши для вращения. Подключается к Input Action "Look" или "InspectRotate".
-    /// </summary>
     public void OnRotateInput(Vector2 delta)
     {
         if (!_isActive) return;
         _rotateInput = delta;
     }
 
-    // ──────────────────────── PRIVATE ────────────────────────
-
     private void EnterInspectionMode()
     {
-        // Отключаем ввод камеры (Cinemachine продолжает рендерить, но не вращается)
         if (_inputAxisController != null)
             _inputAxisController.enabled = false;
 
-        // Курсор остаётся заблокированным — мышь вращает объект напрямую
-
-        // Затемнение
+        if (_inspectionCamera != null)
+            _inspectionCamera.enabled = true;
+        
         if (_fadeImage != null)
         {
+            DOTween.Kill(TweenFadeId);
             _fadeImage.gameObject.SetActive(true);
-            _targetFadeAlpha = _fadeAlpha;
+            _fadeImage.DOFade(_fadeAlpha, _fadeDuration).SetId(TweenFadeId).SetUpdate(true);
         }
+
+        OnInspectionStarted?.Invoke();
     }
 
-    private void ExitInspectionMode()
+    private void CleanupAndExit()
     {
-        // Включаем ввод камеры
+        CleanupPreview();
+
         if (_inputAxisController != null)
             _inputAxisController.enabled = true;
 
-        // Просветление
-        _targetFadeAlpha = 0f;
+        if (_inspectionCamera != null)
+            _inspectionCamera.enabled = false;
+        
+        if (_fadeImage != null)
+        {
+            DOTween.Kill(TweenFadeId);
+            _fadeImage.DOFade(0f, _fadeDuration)
+                .SetId(TweenFadeId)
+                .SetUpdate(true)
+                .OnComplete(() => _fadeImage.gameObject.SetActive(false));
+        }
+
+        _isActive = false;
+        _isWorldMode = false;
+        _worldObject = null;
+        _inspectedTransform = null;
+
+        OnInspectionEnded?.Invoke();
+
+        PuzzleDebugOverlay.Log("[Inspection] Осмотр завершён");
     }
 
     private void PositionInFrontOfCamera()
     {
         if (_inspectedTransform == null || _cameraTransform == null) return;
 
-        // Открепляем от родителя чтобы свободно позиционировать
         _inspectedTransform.SetParent(null);
-
         Vector3 pos = _cameraTransform.position + _cameraTransform.forward * _inspectionDistance;
         _inspectedTransform.position = pos;
         _inspectedTransform.rotation = Quaternion.identity;
@@ -270,7 +223,6 @@ public class InspectionController : MonoBehaviour
 
     private void KeepPositionInFrontOfCamera()
     {
-        // Объект следует за камерой (на случай если камера немного двигается)
         if (_inspectedTransform == null || _cameraTransform == null) return;
 
         Vector3 targetPos = _cameraTransform.position + _cameraTransform.forward * _inspectionDistance;
@@ -282,28 +234,9 @@ public class InspectionController : MonoBehaviour
     {
         if (_inspectedTransform == null) return;
 
-        float rotX = _rotateInput.x * _rotateSpeed;
-        float rotY = _rotateInput.y * _rotateSpeed;
-
-        // Вращаем в мировых координатах для интуитивного управления
-        _inspectedTransform.Rotate(Vector3.up, -rotX, Space.World);
-        _inspectedTransform.Rotate(Vector3.right, rotY, Space.World);
-
-        // Сброс — без этого объект будет крутиться после отпускания мыши
+        _inspectedTransform.Rotate(Vector3.up, -_rotateInput.x * _rotateSpeed, Space.World);
+        _inspectedTransform.Rotate(Vector3.right, _rotateInput.y * _rotateSpeed, Space.World);
         _rotateInput = Vector2.zero;
-    }
-
-    private void UpdateFade()
-    {
-        if (_fadeImage == null) return;
-
-        var color = _fadeImage.color;
-        color.a = Mathf.Lerp(color.a, _targetFadeAlpha, Time.deltaTime * _fadeSpeed);
-        _fadeImage.color = color;
-
-        // Скрываем Image когда полностью прозрачен
-        if (!_isActive && color.a < 0.01f)
-            _fadeImage.gameObject.SetActive(false);
     }
 
     private void CleanupPreview()
@@ -313,5 +246,76 @@ public class InspectionController : MonoBehaviour
             Destroy(_previewInstance);
             _previewInstance = null;
         }
+    }
+    
+    private void ConfigureFadeCanvas()
+    {
+        if (_fadeImage == null || _mainCamera == null) return;
+
+        var canvas = _fadeImage.GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogError("[Inspection] Canvas не найден у _fadeImage!");
+            return;
+        }
+
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = _mainCamera;
+        canvas.planeDistance = _mainCamera.nearClipPlane + 0.1f;
+
+        PuzzleDebugOverlay.Log(
+            $"[Inspection] FadeCanvas '{canvas.name}' переключён на ScreenSpace-Camera");
+    }
+    
+    private void CreateInspectionCamera()
+    {
+        if (_mainCamera == null) return;
+
+        var go = new GameObject("InspectionCamera");
+        go.transform.SetParent(_cameraTransform, worldPositionStays: false);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localRotation = Quaternion.identity;
+
+        _inspectionCamera = go.AddComponent<Camera>();
+        _inspectionCamera.clearFlags = CameraClearFlags.SolidColor;
+        _inspectionCamera.backgroundColor = Color.black;
+        _inspectionCamera.cullingMask = 1 << _inspectionLayer;
+        _inspectionCamera.depth = _mainCamera.depth + 10;
+        _inspectionCamera.fieldOfView = _mainCamera.fieldOfView;
+        _inspectionCamera.nearClipPlane = 0.01f;
+        _inspectionCamera.farClipPlane = 10f;
+
+        _inspectionCamera.enabled = false;
+
+        PuzzleDebugOverlay.Log($"[Inspection] InspectionCamera создана, layer={_inspectionLayer}");
+    }
+    
+    private void SaveAndSetLayer(Transform target, int layer)
+    {
+        _originalLayer = target.gameObject.layer;
+        var children = target.GetComponentsInChildren<Transform>(true);
+        _originalChildLayers = new int[children.Length];
+        for (int i = 0; i < children.Length; i++)
+        {
+            _originalChildLayers[i] = children[i].gameObject.layer;
+            children[i].gameObject.layer = layer;
+        }
+    }
+
+    private void RestoreLayer(Transform target)
+    {
+        if (_originalChildLayers == null) return;
+
+        var children = target.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length && i < _originalChildLayers.Length; i++)
+            children[i].gameObject.layer = _originalChildLayers[i];
+
+        _originalChildLayers = null;
+    }
+
+    private static void SetLayerRecursive(GameObject obj, int layer)
+    {
+        foreach (var t in obj.GetComponentsInChildren<Transform>(true))
+            t.gameObject.layer = layer;
     }
 }
