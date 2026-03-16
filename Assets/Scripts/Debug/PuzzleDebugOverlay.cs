@@ -1,6 +1,5 @@
 ﻿using Mirror;
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -138,7 +137,9 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
             role = "CLIENT";
 
         DrawColoredLabel($"Роль: {role}", NetworkClient.isConnected ? _okColor : _errorColor);
-        DrawColoredLabel($"Клиентов: {NetworkServer.connections.Count}", _waitColor);
+        
+        int clientCount = NetworkServer.active ? NetworkServer.connections.Count : 0;
+        DrawColoredLabel($"Клиентов: {clientCount}", _waitColor);
         DrawColoredLabel($"Tick: {Time.frameCount}", _waitColor);
 
         GUILayout.Space(8);
@@ -146,6 +147,12 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
 
         foreach (var kv in InteractableObjectRegistry.GetAll())
         {
+            if (kv.Value == null)
+            {
+                DrawColoredLabel($"  [{kv.Key}] → (inspectable)", _waitColor);
+                continue;
+            }
+
             string stateText = $"  [{kv.Key}] → \"{kv.Value.CurrentState}\"";
             DrawColoredLabel(stateText, _waitColor);
         }
@@ -153,7 +160,7 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
         GUILayout.Space(8);
         DrawColoredLabel("═══ ПАЗЛЫ ═══", _headerColor);
 
-        var manager = GetPuzzleManager(); // ← кэшированный вызов
+        var manager = GetPuzzleManager();
         if (manager != null)
         {
             foreach (var info in manager.GetDebugInfo())

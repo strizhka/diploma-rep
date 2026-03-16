@@ -717,6 +717,22 @@ MonoBehaviour:
         m_CallState: 2
     m_ActionId: 1a79fddc-6266-4aef-adc7-f239c3d69007
     m_ActionName: 'PlayerGameplay/Navigate[/Keyboard/leftArrow,/Keyboard/rightArrow]'
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 6454507612935613353}
+        m_TargetAssemblyTypeName: PlayerController, Assembly-CSharp
+        m_MethodName: OnApplyItem
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+    m_ActionId: 0c5ad1b4-1112-420d-b250-ab52d8ed6c67
+    m_ActionName: 'PlayerGameplay/ApplyItem[/Keyboard/f,/DualSenseGamepadHID/rightStickPress]'
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
   m_DefaultActionMap: PlayerGameplay
@@ -879,9 +895,7 @@ MonoBehaviour:
   _selectedColor: {r: 0.3, g: 0.6, b: 1, a: 1}
   _normalColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
   _emptySlotColor: {r: 0.15, g: 0.15, b: 0.15, a: 0.6}
-  _heldMarkerColor: {r: 0.2, g: 0.8, b: 0.3, a: 1}
-  _slotWidth: 140
-  _slotHeight: 160
+  _heldMarkerColor: {r: 0.2, g: 0.8, b: 0.3, a: 0.31764707}
   _fadeAlpha: 0.8
   _fadeDuration: 0.25
 --- !u!1 &8758254692206568811

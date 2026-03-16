@@ -127,7 +127,7 @@ public class PlayerController : NetworkBehaviour
     public void OnInteract(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
-        
+
         if (_inventoryUI != null && _inventoryUI.IsOpen)
         {
             _inventoryUI.InspectSelected();
@@ -151,7 +151,25 @@ public class PlayerController : NetworkBehaviour
                 break;
         }
     }
+    
+    public void OnApplyItem(InputAction.CallbackContext context)
+    {
+        if (!isLocalPlayer || !context.performed) return;
+        if (IsBusy) return;
+        if (_playerInventory == null || string.IsNullOrEmpty(_playerInventory.HeldItemId)) return;
+        
+        var focus = _interactionRaycaster?.CurrentFocus;
+        if (focus is not InteractableObject interactable) return;
 
+        var receiver = interactable.GetComponent<ItemReceiver>();
+        if (receiver == null) return;
+
+        _playerInventory.ApplyItemToReceiver(receiver);
+
+        PuzzleDebugOverlay.Log(
+            $"[Player] Применяю '{_playerInventory.HeldItemId}' к '{interactable.ObjectId}'");
+    }
+    
     public void OnInspectExit(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
@@ -194,6 +212,18 @@ public class PlayerController : NetworkBehaviour
                     PuzzleDebugOverlay.DebugLevel.Ok);
             }
             return;
+        }
+        
+        if (_playerInventory != null)
+        {
+            var focus = _interactionRaycaster?.CurrentFocus;
+            if (focus is InspectableObject inspectable && inspectable.CanCollect && !inspectable.IsCollected)
+            {
+                _playerInventory.PickupItem(inspectable);
+                PuzzleDebugOverlay.Log(
+                    $"[Player] Быстро забрал '{inspectable.ObjectId}'",
+                    PuzzleDebugOverlay.DebugLevel.Ok);
+            }
         }
     }
     

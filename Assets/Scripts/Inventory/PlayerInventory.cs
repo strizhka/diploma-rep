@@ -7,18 +7,17 @@ public class PlayerInventory : NetworkBehaviour
 {
     [Header("Данные")]
     [SerializeField] private ItemRegistry _itemRegistry;
-    
-    [Header("Визуал (опционально)")]
+
+    [Header("Визуал")]
     [SerializeField] private Transform _holdPoint;
-    
     [SerializeField] private Vector3 _holdOffset = new Vector3(0.35f, -0.3f, 0.5f);
     [SerializeField] private Vector3 _holdRotation = Vector3.zero;
-    
+
     private readonly SyncList<string> _items = new();
 
     [SyncVar(hook = nameof(OnHeldItemChanged))]
     private string _heldItemId = "";
-    
+
     private GameObject _heldVisualInstance;
     private bool _visualHidden;
 
@@ -44,7 +43,7 @@ public class PlayerInventory : NetworkBehaviour
         DestroyHeldVisual();
         base.OnStopClient();
     }
-
+    
     public void PickupItem(InspectableObject obj)
     {
         if (obj == null || !obj.CanCollect || obj.IsCollected) return;
@@ -77,6 +76,59 @@ public class PlayerInventory : NetworkBehaviour
             $"[Inventory] Игрок подобрал '{itemId}'. Всего: {_items.Count}",
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
+    
+    public void ApplyItemToReceiver(ItemReceiver receiver)
+    {
+        if (receiver == null) return;
+        if (string.IsNullOrEmpty(_heldItemId)) return;
+        if (receiver.IsFilled) return;
+        if (receiver.RequiredItemId != _heldItemId) return;
+
+        CmdApplyItem(receiver.netIdentity, _heldItemId);
+    }
+
+    [Command]
+    private void CmdApplyItem(NetworkIdentity receiverIdentity, string itemId)
+    {
+        if (receiverIdentity == null)
+        {
+            Debug.LogError("[Inventory] NetworkIdentity получателя не найден.");
+            return;
+        }
+
+        var receiver = receiverIdentity.GetComponent<ItemReceiver>();
+        if (receiver == null)
+        {
+            Debug.LogError("[Inventory] ItemReceiver не найден на объекте.");
+            return;
+        }
+
+        if (!_items.Contains(itemId))
+        {
+            Debug.LogWarning($"[Inventory] Предмет '{itemId}' не в инвентаре.");
+            return;
+        }
+
+        bool success = receiver.TryApply(itemId);
+        if (!success) return;
+
+        if (receiver.ShouldConsume)
+        {
+            ConsumeItem(itemId);
+            PuzzleDebugOverlay.Log(
+                $"[Inventory] '{itemId}' израсходован.",
+                PuzzleDebugOverlay.DebugLevel.Ok);
+        }
+    }
+    
+    [Server]
+    private void ConsumeItem(string itemId)
+    {
+        _items.Remove(itemId);
+
+        if (_heldItemId == itemId)
+            _heldItemId = "";
+    }
 
     public void EquipItem(string itemId)
     {
@@ -96,7 +148,7 @@ public class PlayerInventory : NetworkBehaviour
         PuzzleDebugOverlay.Log(
             $"[Inventory] Экипирован: '{(string.IsNullOrEmpty(itemId) ? "пусто" : itemId)}'");
     }
-
+    
     public bool HasItem(string itemId) => _items.Contains(itemId);
 
     public ItemDefinition GetItemAt(int index)
@@ -109,14 +161,14 @@ public class PlayerInventory : NetworkBehaviour
     {
         return _itemRegistry?.Get(itemId);
     }
-    
+
     public void HideHeldVisual()
     {
         _visualHidden = true;
         if (_heldVisualInstance != null)
             _heldVisualInstance.SetActive(false);
     }
-    
+
     public void ShowHeldVisual()
     {
         _visualHidden = false;
@@ -144,9 +196,9 @@ public class PlayerInventory : NetworkBehaviour
         _heldVisualInstance.transform.localPosition = _holdOffset;
         _heldVisualInstance.transform.localRotation = Quaternion.Euler(_holdRotation);
 
-        foreach (var netId in _heldVisualInstance.GetComponentsInChildren<Mirror.NetworkIdentity>())
+        foreach (var netId in _heldVisualInstance.GetComponentsInChildren<NetworkIdentity>())
             Destroy(netId);
-        
+
         if (_visualHidden)
             _heldVisualInstance.SetActive(false);
 
