@@ -4,6 +4,7 @@ using UnityEngine;
 public class InspectableObject : NetworkBehaviour, IFocusable
 {
     [Header("Идентификация")]
+    [Tooltip("Уникальный ID. Если пусто — автогенерируется из имени GameObject.")]
     [SerializeField] private string _objectId;
 
     [Header("Данные предмета")]
@@ -14,6 +15,7 @@ public class InspectableObject : NetworkBehaviour, IFocusable
 
     private Renderer[] _renderers;
     private Collider[] _colliders;
+    private OutlineEffect _outlineEffect;
 
     public string ObjectId => _objectId;
     public ItemDefinition ItemDefinition => _itemDefinition;
@@ -22,13 +24,13 @@ public class InspectableObject : NetworkBehaviour, IFocusable
 
     private void Awake()
     {
+        if (string.IsNullOrEmpty(_objectId))
+            _objectId = gameObject.name;
+
+        // includeInactive = true — объект может начинать скрытым
         _renderers = GetComponentsInChildren<Renderer>(true);
         _colliders = GetComponentsInChildren<Collider>(true);
-    }
-
-    public override void OnStartServer()
-    {
-        InteractableObjectRegistry.Register(_objectId, null);
+        _outlineEffect = GetComponentInChildren<OutlineEffect>(true);
     }
 
     public override void OnStartClient()
@@ -37,25 +39,12 @@ public class InspectableObject : NetworkBehaviour, IFocusable
             SetVisible(false);
     }
 
-    public override void OnStopServer()
-    {
-        InteractableObjectRegistry.Unregister(_objectId);
-    }
-
-    public override void OnStopClient()
-    {
-        if (!NetworkServer.active)
-            InteractableObjectRegistry.Unregister(_objectId);
-    }
-
     public void SetHighlight(bool enabled)
     {
         if (_isCollected) return;
-
-        var outline = GetComponentInChildren<OutlineEffect>(true);
-        outline?.SetHighlight(enabled);
+        _outlineEffect?.SetHighlight(enabled);
     }
-
+    
     [Server]
     public void Collect()
     {
@@ -81,4 +70,12 @@ public class InspectableObject : NetworkBehaviour, IFocusable
         foreach (var c in _colliders)
             if (c != null) c.enabled = visible;
     }
+
+#if UNITY_EDITOR
+    private void Reset()
+    {
+        if (string.IsNullOrEmpty(_objectId))
+            _objectId = gameObject.name;
+    }
+#endif
 }
