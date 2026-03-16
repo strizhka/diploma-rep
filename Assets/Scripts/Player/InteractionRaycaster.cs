@@ -2,19 +2,7 @@ using Mirror;
 using System.Linq;
 using Unity.Cinemachine;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
-/// <summary>
-/// Рейкаст из камеры для обнаружения интерактивных и осматриваемых объектов.
-///
-/// ИЗМЕНЕНИЯ:
-/// 1. Работает с IFocusable вместо конкретного InteractableObject
-///    ? Поддерживает и InteractableObject (жёлтая обводка), и InspectableObject (голубая)
-/// 2. Экспортирует CurrentFocus — PlayerController решает, что делать при нажатии E
-/// 3. Добавлен флаг Enabled — отключается во время осмотра/инвентаря
-/// 4. Убран OnInteract() — вся логика нажатия E перенесена в PlayerController
-///    (раньше был двойной raycast: один в Update, один в OnInteract)
-/// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class InteractionRaycaster : NetworkBehaviour
 {
@@ -25,16 +13,8 @@ public class InteractionRaycaster : NetworkBehaviour
     private IFocusable _currentFocus;
     private bool _enabled = true;
 
-    /// <summary>
-    /// Текущий объект в прицеле. Может быть InteractableObject или InspectableObject.
-    /// null если ничего в прицеле или рейкастер отключён.
-    /// </summary>
     public IFocusable CurrentFocus => _currentFocus;
 
-    /// <summary>
-    /// Включить/выключить рейкастер. false во время осмотра и инвентаря.
-    /// При выключении текущий фокус сбрасывается.
-    /// </summary>
     public bool Enabled
     {
         get => _enabled;
@@ -61,7 +41,7 @@ public class InteractionRaycaster : NetworkBehaviour
         else
         {
             PuzzleDebugOverlay.Log(
-                "[Raycaster] CinemachineCamera не найдена!",
+                "[Raycaster] CinemachineCamera РЅРµ РЅР°Р№РґРµРЅР°!",
                 PuzzleDebugOverlay.DebugLevel.Error);
         }
     }
@@ -70,7 +50,6 @@ public class InteractionRaycaster : NetworkBehaviour
     {
         if (!isLocalPlayer || _rayOrigin == null || !_enabled)
         {
-            // Если отключены — убеждаемся что фокус сброшен
             if (_currentFocus != null)
                 ClearFocus();
             return;
@@ -90,10 +69,7 @@ public class InteractionRaycaster : NetworkBehaviour
             _rayOrigin.forward * _interactionDistance,
             hit ? Color.green : Color.red);
 
-        // Ищем IFocusable — подхватит и InteractableObject, и InspectableObject
-        IFocusable newFocus = hit
-            ? hitInfo.collider.GetComponentInParent<IFocusable>()
-            : null;
+        IFocusable newFocus = hit ? FindBestFocusable(hitInfo.collider) : null;
 
         if (!ReferenceEquals(newFocus, _currentFocus))
         {
@@ -101,6 +77,16 @@ public class InteractionRaycaster : NetworkBehaviour
             newFocus?.SetHighlight(true);
             _currentFocus = newFocus;
         }
+    }
+    
+    private static IFocusable FindBestFocusable(Collider col)
+    {
+        var inspectable = col.GetComponentInParent<InspectableObject>();
+        if (inspectable != null && !inspectable.IsCollected)
+            return inspectable;
+
+        var interactable = col.GetComponentInParent<InteractableObject>();
+        return interactable;
     }
 
     private void ClearFocus()
