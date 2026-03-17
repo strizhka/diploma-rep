@@ -1,19 +1,16 @@
 using Edgegap;
 using Mirror;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class EscapeRoomNetworkManager : NetworkManager
 {
-    [Header("Префабы по сценам")]
+    [Header("РџСЂРµС„Р°Р±С‹ РїРѕ СЃС†РµРЅР°Рј")]
     [SerializeField] private GameObject _waitingRoomPlayerPrefab;
     [SerializeField] private GameObject _gamePlayerPrefab;
 
-    [Header("Игровые сцены")]
-    [Tooltip("Имена сцен, в которых спавнится игровой префаб (не WaitingRoom). " +
-             "Например: BaseMovement, Tutorial, Level_01")]
+    [Header("РРіСЂРѕРІС‹Рµ СЃС†РµРЅС‹")]
     [SerializeField] private string[] _gameSceneNames = { "BaseMovement" };
 
     private int _playerCount = 0;
@@ -24,13 +21,12 @@ public class EscapeRoomNetworkManager : NetworkManager
         _playerCount = 0;
 
         InteractableObjectRegistry.ClearAll();
-
         PuzzleDebugOverlay.ClearLog();
 
         if (PuzzleDebugOverlay.HasInstance)
             PuzzleDebugOverlay.Instance.InvalidateCache();
 
-        PuzzleDebugOverlay.Log($"[Network] Сцена загружена: {sceneName}");
+        PuzzleDebugOverlay.Log($"[Network] РЎС†РµРЅР° Р·Р°РіСЂСѓР¶РµРЅР°: {sceneName}");
     }
 
     public override void OnServerAddPlayer(NetworkConnectionToClient conn)
@@ -48,12 +44,12 @@ public class EscapeRoomNetworkManager : NetworkManager
             if (spawnPoint != null)
             {
                 player = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
-                PuzzleDebugOverlay.Log($"[Spawn] Игрок {_playerCount} заспавнен на {spawnPoint.name}");
+                PuzzleDebugOverlay.Log($"[Spawn] РРіСЂРѕРє {_playerCount} Р·Р°СЃРїР°РІРЅРµРЅ РЅР° {spawnPoint.name}");
             }
             else
             {
                 player = Instantiate(prefab);
-                PuzzleDebugOverlay.Log($"[Spawn] Спавнер {_playerCount} не найден — спавним в (0,0,0)",
+                PuzzleDebugOverlay.Log($"[Spawn] РЎРїР°РІРЅРµСЂ {_playerCount} РЅРµ РЅР°Р№РґРµРЅ вЂ” СЃРїР°РІРЅРёРј РІ (0,0,0)",
                     PuzzleDebugOverlay.DebugLevel.Warning);
             }
         }

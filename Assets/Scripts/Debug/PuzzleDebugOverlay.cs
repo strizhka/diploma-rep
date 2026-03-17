@@ -23,9 +23,9 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
     private GUIStyle _boxStyle;
     private GUIStyle _labelStyle;
     private bool _stylesInitialized;
-
-    private PuzzleManager _cachedPuzzleManager;
-    private bool _puzzleManagerSearched;
+    
+    private PuzzleDirector _cachedDirector;
+    private bool _directorSearched;
 
     private struct LogEntry
     {
@@ -40,15 +40,12 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
         _isVisible = _showOnStart;
     }
 
-    public static void ClearLog()
-    {
-        _log.Clear();
-    }
+    public static void ClearLog() => _log.Clear();
 
     public void InvalidateCache()
     {
-        _cachedPuzzleManager = null;
-        _puzzleManagerSearched = false;
+        _cachedDirector = null;
+        _directorSearched = false;
     }
 
     public static void ToggleStatic()
@@ -87,37 +84,32 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
 
     public enum DebugLevel { Info, Ok, Warning, Error }
 
-    private void Start()
-    {
-        _isVisible = _showOnStart;
-    }
+    private void Start() => _isVisible = _showOnStart;
 
     public void OnDebugToggle(InputAction.CallbackContext context)
     {
-        if (context.performed)
-            _isVisible = !_isVisible;
+        if (context.performed) _isVisible = !_isVisible;
     }
 
-    private PuzzleManager GetPuzzleManager()
+    private PuzzleDirector GetDirector()
     {
-        if (_cachedPuzzleManager == null && !_puzzleManagerSearched)
+        if (_cachedDirector == null && !_directorSearched)
         {
-            _cachedPuzzleManager = FindAnyObjectByType<PuzzleManager>();
-            _puzzleManagerSearched = true;
+            _cachedDirector = FindAnyObjectByType<PuzzleDirector>();
+            _directorSearched = true;
         }
-        return _cachedPuzzleManager;
+        return _cachedDirector;
     }
 
     private void OnGUI()
     {
         if (!_isVisible) return;
-
         InitStyles();
 
         float screenW = Screen.width;
         float screenH = Screen.height;
 
-        DrawNetworkPanel(10, 10, 280, screenH - 20);
+        DrawNetworkPanel(10, 10, 300, screenH - 20);
         DrawLogPanel(screenW - 410, 10, 400, screenH - 20);
     }
 
@@ -132,15 +124,13 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
         if (NetworkServer.active && NetworkClient.isConnected)
             role = "HOST (сервер + клиент)";
         else if (NetworkServer.active)
-            role = "SERVER (дедикейтед)";
+            role = "SERVER";
         else if (NetworkClient.isConnected)
             role = "CLIENT";
 
         DrawColoredLabel($"Роль: {role}", NetworkClient.isConnected ? _okColor : _errorColor);
-        
-        int clientCount = NetworkServer.active ? NetworkServer.connections.Count : 0;
-        DrawColoredLabel($"Клиентов: {clientCount}", _waitColor);
-        DrawColoredLabel($"Tick: {Time.frameCount}", _waitColor);
+        int clients = NetworkServer.active ? NetworkServer.connections.Count : 0;
+        DrawColoredLabel($"Клиентов: {clients}", _waitColor);
 
         GUILayout.Space(8);
         DrawColoredLabel("═══ ОБЪЕКТЫ ═══", _headerColor);
@@ -149,36 +139,45 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
         {
             if (kv.Value == null)
             {
-                DrawColoredLabel($"  [{kv.Key}] → (inspectable)", _waitColor);
+                DrawColoredLabel($"  [{kv.Key}] (no ref)", _waitColor);
                 continue;
             }
 
-            string stateText = $"  [{kv.Key}] → \"{kv.Value.CurrentState}\"";
-            DrawColoredLabel(stateText, _waitColor);
+            string hidden = kv.Value.IsHidden ? " [СКРЫТ]" : "";
+            string locked = kv.Value.IsLocked ? " [БЛОК]" : "";
+            DrawColoredLabel(
+                $"  [{kv.Key}] → \"{kv.Value.CurrentState}\"{hidden}{locked}",
+                _waitColor);
         }
 
         GUILayout.Space(8);
-        DrawColoredLabel("═══ ПАЗЛЫ ═══", _headerColor);
+        DrawColoredLabel("═══ ЗАГАДКИ (Director) ═══", _headerColor);
 
-        var manager = GetPuzzleManager();
-        if (manager != null)
+        var director = GetDirector();
+        if (director != null)
         {
-            foreach (var info in manager.GetDebugInfo())
+            foreach (var info in director.GetDebugInfo())
             {
-                Color c = info.IsCompleted ? _okColor : _waitColor;
-                DrawColoredLabel($"  {info.PuzzleId}: {(info.IsCompleted ? "✓ ВЫПОЛНЕН" : "ожидание")}", c);
+                Color c = info.HasFired ? _okColor : _waitColor;
+                DrawColoredLabel(
+                    $"  [{info.TemplateName}] → {info.TargetId}: " +
+                    $"{(info.HasFired ? "✓ СРАБОТАЛ" : "ожидание")}",
+                    c);
 
-                foreach (var cond in info.Conditions)
+                for (int s = 0; s < info.SourceIds.Length; s++)
                 {
-                    string mark = cond.IsMet ? "  ✓" : "  ✗";
-                    Color cc = cond.IsMet ? _okColor : _errorColor;
-                    DrawColoredLabel($"    {mark} {cond.ObjectId} = \"{cond.RequiredState}\" (сейчас: \"{cond.CurrentState}\")", cc);
+                    string mark = info.ConditionsMet[s] ? "✓" : "✗";
+                    Color cc = info.ConditionsMet[s] ? _okColor : _errorColor;
+                    DrawColoredLabel(
+                        $"    {mark} {info.SourceIds[s]} = " +
+                        $"\"{info.RequiredStates[s]}\" (сейчас: \"{info.CurrentStates[s]}\")",
+                        cc);
                 }
             }
         }
         else
         {
-            DrawColoredLabel("  PuzzleManager не найден!", _errorColor);
+            DrawColoredLabel("  PuzzleDirector не найден", _errorColor);
         }
 
         DrawColoredLabel($"\n[F3] — скрыть", _waitColor);
