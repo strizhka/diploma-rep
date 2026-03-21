@@ -81,6 +81,9 @@ public class InteractionRaycaster : NetworkBehaviour
     
     private static IFocusable FindBestFocusable(Collider col)
     {
+        var phone = col.GetComponentInParent<PhoneController>();
+        if (phone != null) return phone;
+
         var inspectable = col.GetComponentInParent<InspectableObject>();
         if (inspectable != null && !inspectable.IsCollected)
             return inspectable;

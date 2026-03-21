@@ -140,6 +140,12 @@ public class PlayerController : NetworkBehaviour
         var focus = _interactionRaycaster?.CurrentFocus;
         if (focus == null) return;
 
+        if (focus is PhoneController phone)
+        {
+            phone.Use();
+            return;
+        }
+
         switch (focus)
         {
             case InteractableObject interactable:
