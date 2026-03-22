@@ -11,7 +11,7 @@ public class EscapeRoomNetworkManager : NetworkManager
     [SerializeField] private GameObject _gamePlayerPrefab;
 
     [Header("Игровые сцены")]
-    [SerializeField] private string[] _gameSceneNames = { "BaseMovement" };
+    [SerializeField] private string[] _gameSceneNames = { "Tutorial" };
 
     private int _playerCount = 0;
 

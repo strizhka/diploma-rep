@@ -108,6 +108,6 @@ public class WaitingRoomNetwork : NetworkBehaviour
     {
         PuzzleDebugOverlay.Log("[WaitingRoom] Оба готовы — загружаем игру!");
         if (NetworkServer.active)
-            NetworkManager.singleton.ServerChangeScene("BaseMovement");
+            NetworkManager.singleton.ServerChangeScene("Tutorial");
     }
 }

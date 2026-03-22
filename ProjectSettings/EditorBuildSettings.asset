@@ -12,6 +12,9 @@ EditorBuildSettings:
     path: Assets/Scenes/WaitingRoom.unity
     guid: dd41e001010ae9b48a61ad5273993d06
   - enabled: 1
+    path: Assets/Scenes/Tutorial.unity
+    guid: a54a4e75435ee264c8f7643aa424a44f
+  - enabled: 1
     path: Assets/Scenes/BaseMovement.unity
     guid: 6380b30e4e692974684665321e8a17c1
   m_configObjects:
