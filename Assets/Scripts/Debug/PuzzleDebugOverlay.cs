@@ -23,7 +23,7 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
     private GUIStyle _boxStyle;
     private GUIStyle _labelStyle;
     private bool _stylesInitialized;
-    
+
     private PuzzleDirector _cachedDirector;
     private bool _directorSearched;
 
@@ -160,7 +160,7 @@ public class PuzzleDebugOverlay : Singleton<PuzzleDebugOverlay>
             {
                 Color c = info.HasFired ? _okColor : _waitColor;
                 DrawColoredLabel(
-                    $"  [{info.TemplateName}] → {info.TargetId}: " +
+                    $"  [{info.TemplateName}] → {info.TargetName}: " +
                     $"{(info.HasFired ? "✓ СРАБОТАЛ" : "ожидание")}",
                     c);
 

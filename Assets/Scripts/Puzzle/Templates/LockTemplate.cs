@@ -3,11 +3,18 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "T_Lock", menuName = "Puzzles/Templates/Lock")]
 public class LockTemplate : PuzzleTemplate
 {
-    public override void Execute(InteractableObject target, string targetState)
+    public override void Execute(GameObject target, string targetState)
     {
-        target.SetLocked(true);
+        var interactable = target.GetComponent<InteractableObject>();
+        if (interactable == null)
+        {
+            Debug.LogWarning($"[Template:Lock] InteractableObject не найден на '{target.name}'");
+            return;
+        }
+
+        interactable.SetLocked(true);
         PuzzleDebugOverlay.Log(
-            $"[Template:Lock] '{target.ObjectId}' заблокирован",
+            $"[Template:Lock] '{target.name}' заблокирован",
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
 }

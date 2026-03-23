@@ -7,40 +7,42 @@ using UnityEngine;
 public class PuzzleDirector : NetworkBehaviour
 {
     [SerializeField] private PuzzleEntry[] _entries;
-    
+
     private EntryRuntime[] _runtimes;
 
     [Serializable]
     public class PuzzleEntry
     {
         [Header("Шаблон эффекта")]
-        [Tooltip("Тип эффекта: Reveal, Hide, SetState, Unlock, Lock...")]
         public PuzzleTemplate Template;
 
         [Header("Источники (кто триггерит)")]
-        [Tooltip("Объекты, чьё состояние проверяется. Для простых загадок — один элемент.")]
         public InteractableObject[] Sources;
-
-        [Tooltip("Требуемые состояния. По одному на каждый Source, в том же порядке.")]
         public string[] TriggerStates;
 
         [Header("Цель (на кого действует)")]
-        public InteractableObject Target;
+        [Tooltip("Любой GameObject: InteractableObject, свет, партиклы, простой объект")]
+        public GameObject Target;
 
-        [Tooltip("Дополнительный параметр для SetState шаблона")]
+        [Tooltip("Дополнительный параметр для SetState")]
         public string TargetState;
 
         [Header("Настройки")]
         public float Delay;
         public bool OneShot = true;
 
-        [Tooltip("All = все условия выполнены (порядок не важен).\n" +
-                 "Simultaneous = все условия в пределах TimeWindow.")]
         public ConditionMode Mode = ConditionMode.All;
 
-        [Tooltip("Окно в секундах для Simultaneous режима")]
         [Min(0.1f)]
         public float TimeWindow = 3f;
+
+        [Header("Звук (опционально)")]
+        [Tooltip("Проигрывается на всех клиентах при срабатывании")]
+        public AudioClip Sound;
+
+        [Tooltip("Громкость звука")]
+        [Range(0f, 1f)]
+        public float SoundVolume = 1f;
     }
 
     public enum ConditionMode
@@ -79,7 +81,7 @@ public class PuzzleDirector : NetworkBehaviour
             if (runtime.HasFired && entry.OneShot) continue;
             if (entry.Template == null || entry.Target == null) continue;
             if (entry.Sources == null || entry.Sources.Length == 0) continue;
-            
+
             bool isRelevant = false;
             for (int s = 0; s < entry.Sources.Length; s++)
             {
@@ -91,13 +93,13 @@ public class PuzzleDirector : NetworkBehaviour
             }
 
             if (!isRelevant) continue;
-            
+
             runtime.SourceStates[objectId] = (newState, now);
-            
+
             if (EvaluateEntry(entry, runtime, now))
             {
                 runtime.HasFired = true;
-                ExecuteEntry(entry);
+                ExecuteEntry(entry, i);
             }
         }
     }
@@ -109,20 +111,18 @@ public class PuzzleDirector : NetworkBehaviour
             if (entry.Sources[s] == null) return false;
 
             string sourceId = entry.Sources[s].ObjectId;
-            
             string requiredState = s < entry.TriggerStates.Length
-                ? entry.TriggerStates[s]
-                : "";
+                ? entry.TriggerStates[s] : "";
 
             if (string.IsNullOrEmpty(requiredState)) return false;
-            
+
             if (!runtime.SourceStates.TryGetValue(sourceId, out var recorded))
                 return false;
 
             if (recorded.state != requiredState)
                 return false;
         }
-        
+
         if (entry.Mode == ConditionMode.Simultaneous && entry.Sources.Length > 1)
         {
             float earliest = float.MaxValue;
@@ -143,34 +143,60 @@ public class PuzzleDirector : NetworkBehaviour
         return true;
     }
 
-    private void ExecuteEntry(PuzzleEntry entry)
+    private void ExecuteEntry(PuzzleEntry entry, int entryIndex)
     {
         if (entry.Delay <= 0f)
-            DoExecute(entry);
+            DoExecute(entry, entryIndex);
         else
-            StartCoroutine(DelayedExecute(entry));
+            StartCoroutine(DelayedExecute(entry, entryIndex));
     }
 
-    private IEnumerator DelayedExecute(PuzzleEntry entry)
+    private IEnumerator DelayedExecute(PuzzleEntry entry, int entryIndex)
     {
         yield return new WaitForSeconds(entry.Delay);
-        DoExecute(entry);
+        DoExecute(entry, entryIndex);
     }
 
     [Server]
-    private void DoExecute(PuzzleEntry entry)
+    private void DoExecute(PuzzleEntry entry, int entryIndex)
     {
-        if (entry.Target == null)
-        {
-            Debug.LogWarning("[Director] Target == null при выполнении эффекта.");
-            return;
-        }
+        if (entry.Target == null) return;
 
         entry.Template.Execute(entry.Target, entry.TargetState);
 
+        if (entry.Target.GetComponent<InteractableObject>() == null)
+        {
+            bool isActive = entry.Target.activeSelf;
+            RpcSyncTargetActive(entryIndex, isActive);
+        }
+
+        if (entry.Sound != null)
+            RpcPlaySound(entryIndex);
+
         PuzzleDebugOverlay.Log(
-            $"[Director] Эффект '{entry.Template.name}' → '{entry.Target.ObjectId}'",
+            $"[Director] Эффект '{entry.Template.name}' → '{entry.Target.name}'",
             PuzzleDebugOverlay.DebugLevel.Ok);
+    }
+
+    [ClientRpc]
+    private void RpcSyncTargetActive(int entryIndex, bool active)
+    {
+        if (entryIndex < 0 || entryIndex >= _entries.Length) return;
+
+        var target = _entries[entryIndex].Target;
+        if (target != null && target.GetComponent<InteractableObject>() == null)
+            target.SetActive(active);
+    }
+
+    [ClientRpc]
+    private void RpcPlaySound(int entryIndex)
+    {
+        if (entryIndex < 0 || entryIndex >= _entries.Length) return;
+
+        var entry = _entries[entryIndex];
+        if (entry.Sound == null || entry.Target == null) return;
+
+        AudioSource.PlayClipAtPoint(entry.Sound, entry.Target.transform.position, entry.SoundVolume);
     }
 
     public struct EntryDebugInfo
@@ -180,7 +206,7 @@ public class PuzzleDirector : NetworkBehaviour
         public string[] RequiredStates;
         public string[] CurrentStates;
         public bool[] ConditionsMet;
-        public string TargetId;
+        public string TargetName;
         public bool HasFired;
     }
 
@@ -201,7 +227,7 @@ public class PuzzleDirector : NetworkBehaviour
                 RequiredStates = new string[count],
                 CurrentStates = new string[count],
                 ConditionsMet = new bool[count],
-                TargetId = entry.Target != null ? entry.Target.ObjectId : "null",
+                TargetName = entry.Target != null ? entry.Target.name : "null",
                 HasFired = runtime.HasFired
             };
 

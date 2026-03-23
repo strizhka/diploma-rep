@@ -28,7 +28,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
 
     [Header("Реакция на смену состояния")]
     public UnityEvent<string> OnStateChanged;
-    
+
     [SyncVar(hook = nameof(OnStateSync))]
     private string _currentState;
 
@@ -37,12 +37,12 @@ public class InteractableObject : NetworkBehaviour, IFocusable
 
     [SyncVar]
     private bool _isLocked;
-    
+
     private int _currentStateIndex;
     private OutlineEffect _outlineEffect;
     private Renderer[] _renderers;
     private Collider[] _colliders;
-    
+
     public string ObjectId => _objectId;
     public string CurrentState => _currentState;
     public bool IsHidden => _isHidden;
@@ -54,7 +54,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
             _objectId = gameObject.name;
 
         _currentState = _defaultState;
-        
+
         _outlineEffect = GetComponentInChildren<OutlineEffect>(true);
         _renderers = GetComponentsInChildren<Renderer>(true);
         _colliders = GetComponentsInChildren<Collider>(true);
@@ -63,7 +63,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
     public override void OnStartServer()
     {
         InteractableObjectRegistry.Register(_objectId, this);
-        
+
         _isHidden = _startHidden;
         _isLocked = _startLocked;
     }
@@ -91,7 +91,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
         if (_isHidden) return;
         _outlineEffect?.SetHighlight(enabled);
     }
-    
+
     public void Interact()
     {
         if (_isLocked)
@@ -105,27 +105,35 @@ public class InteractableObject : NetworkBehaviour, IFocusable
         _currentStateIndex = (_currentStateIndex + 1) % _statesCycle.Length;
         string nextState = _statesCycle[_currentStateIndex];
         PuzzleDebugOverlay.Log($"[Interact] {_objectId} попытка → {nextState}");
+        CmdSelfApplyState(nextState);
         _onInteractEvent?.Raise(new InteractionData(_objectId, nextState));
     }
-    
+
+    [Command(requiresAuthority = false)]
+    private void CmdSelfApplyState(string newState)
+    {
+        _currentState = newState;
+        PuzzleDebugOverlay.Log($"[Server] {_objectId} → {newState}");
+    }
+
     [Server]
     public void ApplyState(string newState)
     {
         _currentState = newState;
     }
-    
+
     [Server]
     public void SetHidden(bool hidden)
     {
         _isHidden = hidden;
     }
-    
+
     [Server]
     public void SetLocked(bool locked)
     {
         _isLocked = locked;
     }
-    
+
     private void OnStateSync(string oldState, string newState)
     {
         SyncIndexFromState(newState);
@@ -142,7 +150,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
             $"[{_objectId}] {(hidden ? "скрыт" : "показан")}",
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
-    
+
     private void ApplyVisibility(bool visible)
     {
         foreach (var r in _renderers)

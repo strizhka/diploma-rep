@@ -146,6 +146,12 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        if (focus is DigitButton digit)
+        {
+            digit.Press();
+            return;
+        }
+
         switch (focus)
         {
             case InteractableObject interactable:

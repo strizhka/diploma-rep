@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshRenderer))]
@@ -7,7 +8,7 @@ public class OutlineEffect : MonoBehaviour
 
     [Header("Толщина")]
     [Tooltip("Базовая толщина обводки. Значение зависит от шейдера (обычно 0.01–0.1).")]
-    [SerializeField] private float _outlineWidth = 0.03f;
+    [SerializeField] private float _outlineWidth = 0.003f;
 
     [Tooltip("Имя свойства толщины в outline-шейдере")]
     [SerializeField] private string _widthPropertyName = "_OutlineWidth";
@@ -68,7 +69,7 @@ public class OutlineEffect : MonoBehaviour
                 );
                 
                 if (meshSize > 0f)
-                    width = _outlineWidth * Mathf.Clamp(meshSize / _referenceSize, 0.2f, 3f);
+                    width = MathF.Min(_outlineWidth * Mathf.Clamp(meshSize / _referenceSize, 0.2f, 3f), _outlineWidth);
             }
         }
 
