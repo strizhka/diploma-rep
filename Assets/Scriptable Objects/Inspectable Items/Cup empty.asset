@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5e0895cc1de3794b987bbb05a81b8fb, type: 3}
+  m_Name: Cup empty
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
+  ItemId: cup empty
+  DisplayName: "\u041F\u0443\u0441\u0442\u0430\u044F \u043A\u0440\u0443\u0436\u043A\u0430"
+  CanCollect: 1
+  PreviewPrefab: {fileID: 5079649206799541107, guid: 1799cc7c56e44b14399f4ecdabd365a2, type: 3}
+  Icon: {fileID: 21300000, guid: c1dbec2347ff2144fbb4f6c9f7bc5ff4, type: 3}
