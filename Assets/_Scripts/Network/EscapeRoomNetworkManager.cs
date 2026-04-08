@@ -4,6 +4,10 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// ИЗМЕНЕНИЕ: ссылки на PuzzleManager заменены на PuzzleDirector.
+/// Всё остальное без изменений.
+/// </summary>
 public class EscapeRoomNetworkManager : NetworkManager
 {
     [Header("Префабы по сценам")]
@@ -11,7 +15,7 @@ public class EscapeRoomNetworkManager : NetworkManager
     [SerializeField] private GameObject _gamePlayerPrefab;
 
     [Header("Игровые сцены")]
-    [SerializeField] private string[] _gameSceneNames = { "Tutorial" };
+    [SerializeField] private string[] _gameSceneNames = { "BaseMovement" };
 
     private int _playerCount = 0;
 
@@ -60,6 +64,11 @@ public class EscapeRoomNetworkManager : NetworkManager
 
         _playerCount++;
         NetworkServer.AddPlayerForConnection(conn, player);
+
+        // Устанавливаем индекс игрока для per-player visibility (RoomAOnly/RoomBOnly)
+        var visibility = player.GetComponent<PlayerRoomVisibility>();
+        if (visibility != null)
+            visibility.SetPlayerIndex(_playerCount - 1);
     }
 
     private Transform FindSpawnPoint(int playerIndex)
@@ -86,7 +95,14 @@ public class EscapeRoomNetworkManager : NetworkManager
 
         var transport = GetComponent<EdgegapKcpTransport>();
         if (transport != null)
+        {
             transport.Timeout = 60000;
+
+            // ВАЖНО: В Inspector на EdgegapKcpTransport также проверь:
+            // - Send Window Size = 512 (по умолчанию может быть 128)
+            // - Receive Window Size = 512
+            // Маленькие буферы → переполнение → клиент теряет синхронизацию
+        }
     }
 
     public override void OnApplicationQuit()

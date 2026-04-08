@@ -25,8 +25,11 @@ public class PlayerInventory : NetworkBehaviour
     public string HeldItemId => _heldItemId;
     public int Count => _items.Count;
     public ItemRegistry Registry => _itemRegistry;
+    public Transform HoldPoint => _holdPoint;
 
     public event Action OnInventoryChanged;
+
+    // ──────────────────────── LIFECYCLE ────────────────────────
 
     public override void OnStartClient()
     {
@@ -43,7 +46,9 @@ public class PlayerInventory : NetworkBehaviour
         DestroyHeldVisual();
         base.OnStopClient();
     }
-    
+
+    // ──────────────────────── СБОР ПРЕДМЕТА ────────────────────────
+
     public void PickupItem(InspectableObject obj)
     {
         if (obj == null || !obj.CanCollect || obj.IsCollected) return;
@@ -76,13 +81,41 @@ public class PlayerInventory : NetworkBehaviour
             $"[Inventory] Игрок подобрал '{itemId}'. Всего: {_items.Count}",
             PuzzleDebugOverlay.DebugLevel.Ok);
     }
-    
+
+    // ──────────────────────── ПРИМЕНЕНИЕ ПРЕДМЕТА ────────────────────────
+
     public void ApplyItemToReceiver(ItemReceiver receiver)
     {
-        if (receiver == null) return;
-        if (string.IsNullOrEmpty(_heldItemId)) return;
-        if (receiver.IsFilled) return;
-        if (receiver.RequiredItemId != _heldItemId) return;
+        // Подробное логирование каждой проверки — найти точку отказа
+        if (receiver == null)
+        {
+            PuzzleDebugOverlay.Log("[Apply] ОТКАЗ: receiver == null", PuzzleDebugOverlay.DebugLevel.Warning);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_heldItemId))
+        {
+            PuzzleDebugOverlay.Log("[Apply] ОТКАЗ: руки пусты", PuzzleDebugOverlay.DebugLevel.Warning);
+            return;
+        }
+
+        if (receiver.IsFilled)
+        {
+            PuzzleDebugOverlay.Log("[Apply] ОТКАЗ: receiver уже заполнен", PuzzleDebugOverlay.DebugLevel.Warning);
+            return;
+        }
+
+        if (receiver.RequiredItemId != _heldItemId)
+        {
+            PuzzleDebugOverlay.Log(
+                $"[Apply] ОТКАЗ: требуется '{receiver.RequiredItemId}', в руках '{_heldItemId}'",
+                PuzzleDebugOverlay.DebugLevel.Warning);
+            return;
+        }
+
+        PuzzleDebugOverlay.Log(
+            $"[Apply] Отправляю Command: '{_heldItemId}' → receiver '{receiver.name}'",
+            PuzzleDebugOverlay.DebugLevel.Ok);
 
         CmdApplyItem(receiver.netIdentity, _heldItemId);
     }
@@ -90,45 +123,88 @@ public class PlayerInventory : NetworkBehaviour
     [Command]
     private void CmdApplyItem(NetworkIdentity receiverIdentity, string itemId)
     {
+        PuzzleDebugOverlay.Log($"[Apply:Server] Command получен: itemId='{itemId}'");
+
         if (receiverIdentity == null)
         {
-            Debug.LogError("[Inventory] NetworkIdentity получателя не найден.");
+            Debug.LogError("[Apply:Server] NetworkIdentity получателя == null.");
             return;
         }
 
         var receiver = receiverIdentity.GetComponent<ItemReceiver>();
         if (receiver == null)
         {
-            Debug.LogError("[Inventory] ItemReceiver не найден на объекте.");
+            Debug.LogError("[Apply:Server] ItemReceiver не найден на объекте.");
             return;
         }
 
         if (!_items.Contains(itemId))
         {
-            Debug.LogWarning($"[Inventory] Предмет '{itemId}' не в инвентаре.");
+            PuzzleDebugOverlay.Log(
+                $"[Apply:Server] ОТКАЗ: '{itemId}' нет в _items. Содержимое: [{string.Join(", ", _items)}]",
+                PuzzleDebugOverlay.DebugLevel.Error);
             return;
         }
 
         bool success = receiver.TryApply(itemId);
+        PuzzleDebugOverlay.Log($"[Apply:Server] TryApply = {success}");
+
         if (!success) return;
 
         if (receiver.ShouldConsume)
         {
             ConsumeItem(itemId);
             PuzzleDebugOverlay.Log(
-                $"[Inventory] '{itemId}' израсходован.",
+                $"[Apply:Server] '{itemId}' израсходован. Осталось: [{string.Join(", ", _items)}]",
                 PuzzleDebugOverlay.DebugLevel.Ok);
         }
     }
-    
+
     [Server]
     private void ConsumeItem(string itemId)
     {
-        _items.Remove(itemId);
+        bool removed = _items.Remove(itemId);
+        PuzzleDebugOverlay.Log($"[Consume] Remove('{itemId}') = {removed}");
 
         if (_heldItemId == itemId)
             _heldItemId = "";
     }
+
+    // ──────────────────────── ПОСТАМЕНТ ────────────────────────
+
+    /// <summary>
+    /// Поставить предмет из рук на PedestalSlot.
+    /// </summary>
+    public void PlaceOnPedestal(PedestalSlot pedestal)
+    {
+        if (pedestal == null) return;
+        if (string.IsNullOrEmpty(_heldItemId)) return;
+
+        CmdPlaceOnPedestal(pedestal.netIdentity, _heldItemId);
+    }
+
+    [Command]
+    private void CmdPlaceOnPedestal(NetworkIdentity pedestalIdentity, string itemId)
+    {
+        if (pedestalIdentity == null) return;
+
+        var pedestal = pedestalIdentity.GetComponent<PedestalSlot>();
+        if (pedestal == null) return;
+
+        if (!_items.Contains(itemId))
+        {
+            PuzzleDebugOverlay.Log($"[Pedestal] '{itemId}' нет в инвентаре",
+                PuzzleDebugOverlay.DebugLevel.Error);
+            return;
+        }
+
+        bool placed = pedestal.TryPlace(itemId);
+        if (!placed) return;
+
+        ConsumeItem(itemId);
+    }
+
+    // ──────────────────────── ЭКИПИРОВКА ────────────────────────
 
     public void EquipItem(string itemId)
     {
@@ -148,7 +224,9 @@ public class PlayerInventory : NetworkBehaviour
         PuzzleDebugOverlay.Log(
             $"[Inventory] Экипирован: '{(string.IsNullOrEmpty(itemId) ? "пусто" : itemId)}'");
     }
-    
+
+    // ──────────────────────── УТИЛИТЫ ────────────────────────
+
     public bool HasItem(string itemId) => _items.Contains(itemId);
 
     public ItemDefinition GetItemAt(int index)
@@ -161,6 +239,8 @@ public class PlayerInventory : NetworkBehaviour
     {
         return _itemRegistry?.Get(itemId);
     }
+
+    // ──────────────────────── ВИЗУАЛ В РУКАХ ────────────────────────
 
     public void HideHeldVisual()
     {

@@ -4,6 +4,14 @@ using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// ИЗМЕНЕНИЯ (v5):
+/// - Добавлен OnApplyItem (F) — применение предмета из рук к объекту с ItemReceiver
+/// - InteractionRaycaster.CurrentFocus проверяется на наличие ItemReceiver
+///
+/// INPUT ACTION (добавить):
+///   ApplyItem:  F  (Button)
+/// </summary>
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(InteractionRaycaster))]
 public class PlayerController : NetworkBehaviour
@@ -22,6 +30,8 @@ public class PlayerController : NetworkBehaviour
     private PlayerInventory _playerInventory;
     private InventoryUI _inventoryUI;
     private CinemachineCamera _cinCam;
+    private CinemachineInputAxisController _inputAxisController;
+    private CinemachinePanTilt _panTilt;
 
     private Vector2 _moveInput;
     private Vector3 _velocity;
@@ -58,6 +68,9 @@ public class PlayerController : NetworkBehaviour
         _cinCam.Follow = _head;
         _cinCam.LookAt = _head;
 
+        _inputAxisController = _cinCam.GetComponent<CinemachineInputAxisController>();
+        _panTilt = _cinCam.GetComponent<CinemachinePanTilt>();
+
         _inspectionController?.Initialize(_cinCam.transform);
         _inventoryUI?.Initialize(_playerInventory, _inspectionController);
 
@@ -84,12 +97,29 @@ public class PlayerController : NetworkBehaviour
         if (_interactionRaycaster != null)
             _interactionRaycaster.Enabled = !IsBusy;
 
-        if (IsBusy) return;
+        // Блокировка камеры при открытом инвентаре или осмотре
+        bool busy = IsBusy;
+        if (_inputAxisController != null)
+            _inputAxisController.enabled = !busy;
+        if (_panTilt != null)
+            _panTilt.enabled = !busy;
+
+        if (busy) return;
 
         HandleRotation();
         HandleMovement();
         HandleGravity();
     }
+
+    private void LateUpdate()
+    {
+        if (!isLocalPlayer || _cinCam == null) return;
+
+        // Предмет в руках следует за наклоном камеры (тилт)
+        UpdateHeldItemTilt();
+    }
+
+    // ──────────────────────── ДВИЖЕНИЕ ────────────────────────
 
     private void HandleRotation()
     {
@@ -112,6 +142,20 @@ public class PlayerController : NetworkBehaviour
         _controller.Move(_velocity * Time.deltaTime);
     }
 
+    /// <summary>
+    /// Предмет в руках наклоняется вместе с камерой (тилт вверх/вниз).
+    /// </summary>
+    private void UpdateHeldItemTilt()
+    {
+        if (_playerInventory == null || _playerInventory.HoldPoint == null) return;
+
+        float pitch = _cinCam.transform.eulerAngles.x;
+        float yaw = _cinCam.transform.eulerAngles.y;
+        _playerInventory.HoldPoint.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
+
+    // ──────────────────────── INPUT ────────────────────────
+
     public void OnMove(InputAction.CallbackContext context)
     {
         _moveInput = context.ReadValue<Vector2>();
@@ -123,7 +167,10 @@ public class PlayerController : NetworkBehaviour
         if (context.performed && _controller.isGrounded)
             _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
     }
-    
+
+    /// <summary>
+    /// E — контекстное взаимодействие (переключить / осмотреть).
+    /// </summary>
     public void OnInteract(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
@@ -140,12 +187,14 @@ public class PlayerController : NetworkBehaviour
         var focus = _interactionRaycaster?.CurrentFocus;
         if (focus == null) return;
 
+        // Телефон
         if (focus is PhoneController phone)
         {
             phone.Use();
             return;
         }
 
+        // Кнопка кодового замка
         if (focus is DigitButton digit)
         {
             digit.Press();
@@ -163,25 +212,43 @@ public class PlayerController : NetworkBehaviour
                 break;
         }
     }
-    
+
+    /// <summary>
+    /// F — применить предмет из рук к объекту в прицеле.
+    /// Поддерживает: ItemReceiver (обычный) и PedestalSlot (универсальный постамент).
+    /// </summary>
     public void OnApplyItem(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
         if (IsBusy) return;
         if (_playerInventory == null || string.IsNullOrEmpty(_playerInventory.HeldItemId)) return;
-        
+
         var focus = _interactionRaycaster?.CurrentFocus;
         if (focus is not InteractableObject interactable) return;
 
+        // Приоритет 1: PedestalSlot (универсальный постамент)
+        var pedestal = interactable.GetComponent<PedestalSlot>();
+        if (pedestal != null)
+        {
+            _playerInventory.PlaceOnPedestal(pedestal);
+            PuzzleDebugOverlay.Log(
+                $"[Player] Ставлю '{_playerInventory.HeldItemId}' на '{interactable.ObjectId}'");
+            return;
+        }
+
+        // Приоритет 2: ItemReceiver (обычный)
         var receiver = interactable.GetComponent<ItemReceiver>();
-        if (receiver == null) return;
-
-        _playerInventory.ApplyItemToReceiver(receiver);
-
-        PuzzleDebugOverlay.Log(
-            $"[Player] Применяю '{_playerInventory.HeldItemId}' к '{interactable.ObjectId}'");
+        if (receiver != null)
+        {
+            _playerInventory.ApplyItemToReceiver(receiver);
+            PuzzleDebugOverlay.Log(
+                $"[Player] Применяю '{_playerInventory.HeldItemId}' к '{interactable.ObjectId}'");
+        }
     }
-    
+
+    /// <summary>
+    /// Q — выход из осмотра / инвентаря.
+    /// </summary>
     public void OnInspectExit(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
@@ -198,11 +265,16 @@ public class PlayerController : NetworkBehaviour
             return;
         }
     }
-    
+
+    /// <summary>
+    /// G — забрать предмет.
+    /// Приоритет: инвентарь (экипировать) → осмотр (забрать) → свободный режим (быстрый сбор).
+    /// </summary>
     public void OnGrab(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
-        
+
+        // ─── Инвентарь: G = экипировать ───
         if (_inventoryUI != null && _inventoryUI.IsOpen)
         {
             if (_inspectionController != null && _inspectionController.IsActive)
@@ -211,7 +283,8 @@ public class PlayerController : NetworkBehaviour
             _inventoryUI.EquipSelected();
             return;
         }
-        
+
+        // ─── Осмотр со сцены: G = забрать в инвентарь ───
         if (_inspectionController != null && _inspectionController.IsActive)
         {
             var obj = _inspectionController.CurrentWorldObject;
@@ -225,7 +298,8 @@ public class PlayerController : NetworkBehaviour
             }
             return;
         }
-        
+
+        // ─── Свободный режим: G на InspectableObject = быстрый сбор без осмотра ───
         if (_playerInventory != null)
         {
             var focus = _interactionRaycaster?.CurrentFocus;
@@ -238,7 +312,10 @@ public class PlayerController : NetworkBehaviour
             }
         }
     }
-    
+
+    /// <summary>
+    /// B — открыть/закрыть инвентарь.
+    /// </summary>
     public void OnOpenInventory(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer || !context.performed) return;
@@ -253,7 +330,10 @@ public class PlayerController : NetworkBehaviour
         else
             _inventoryUI.Open();
     }
-    
+
+    /// <summary>
+    /// Стрелки — навигация инвентаря.
+    /// </summary>
     public void OnNavigate(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer) return;
@@ -266,7 +346,10 @@ public class PlayerController : NetworkBehaviour
             else if (x > 0.5f) _inventoryUI.Navigate(1);
         }
     }
-    
+
+    /// <summary>
+    /// Мышь — вращение при осмотре.
+    /// </summary>
     public void OnLook(InputAction.CallbackContext context)
     {
         if (!isLocalPlayer) return;

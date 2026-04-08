@@ -1,6 +1,20 @@
-using System;
 using UnityEngine;
 
+/// <summary>
+/// Обводка объекта через дополнительный material pass.
+///
+/// ИЗМЕНЕНИЯ:
+/// 1. _outlineWidth — настраиваемая толщина обводки в инспекторе
+/// 2. _autoScaleByMesh — если true, толщина масштабируется по размеру меша
+///    (маленький объект → тоньше, большой → толще, визуально одинаково)
+/// 3. Создаёт runtime-копию материала → каждый объект может иметь свою толщину
+///    без изменения shared material
+///
+/// ТРЕБОВАНИЕ К ШЕЙДЕРУ:
+/// Outline-шейдер должен иметь свойство для толщины.
+/// Стандартные имена: "_OutlineWidth", "_Outline", "_Width".
+/// Задай имя в _widthPropertyName (по умолчанию "_OutlineWidth").
+/// </summary>
 [RequireComponent(typeof(MeshRenderer))]
 public class OutlineEffect : MonoBehaviour
 {
@@ -8,7 +22,7 @@ public class OutlineEffect : MonoBehaviour
 
     [Header("Толщина")]
     [Tooltip("Базовая толщина обводки. Значение зависит от шейдера (обычно 0.01–0.1).")]
-    [SerializeField] private float _outlineWidth = 0.003f;
+    [SerializeField] private float _outlineWidth = 0.03f;
 
     [Tooltip("Имя свойства толщины в outline-шейдере")]
     [SerializeField] private string _widthPropertyName = "_OutlineWidth";
@@ -31,7 +45,8 @@ public class OutlineEffect : MonoBehaviour
     {
         _renderer = GetComponent<MeshRenderer>();
         _originalMaterials = _renderer.materials;
-        
+
+        // Создаём runtime-копию outline материала для этого объекта
         _runtimeOutlineMaterial = new Material(_outlineMaterial);
         ApplyWidth();
 
@@ -48,6 +63,26 @@ public class OutlineEffect : MonoBehaviour
         _renderer.materials = enabled ? _outlineMaterials : _originalMaterials;
     }
 
+    /// <summary>
+    /// Обновляет кэш материалов. Вызывается из MaterialSwap после смены материала.
+    /// Без этого SetHighlight(false) вернёт старый материал.
+    /// </summary>
+    public void RefreshMaterials()
+    {
+        // Читаем текущие материалы (уже с новым от MaterialSwap)
+        _originalMaterials = _renderer.materials;
+
+        // Пересобираем массив с обводкой
+        _outlineMaterials = new Material[_originalMaterials.Length + 1];
+        for (int i = 0; i < _originalMaterials.Length; i++)
+            _outlineMaterials[i] = _originalMaterials[i];
+        _outlineMaterials[^1] = _runtimeOutlineMaterial;
+
+        // Если сейчас подсвечен — обновляем отображение
+        if (_isHighlighted)
+            _renderer.materials = _outlineMaterials;
+    }
+
     private void ApplyWidth()
     {
         if (_runtimeOutlineMaterial == null) return;
@@ -60,6 +95,7 @@ public class OutlineEffect : MonoBehaviour
             var meshFilter = GetComponent<MeshFilter>();
             if (meshFilter != null && meshFilter.sharedMesh != null)
             {
+                // Размер меша = максимальная ось bounding box × масштаб объекта
                 Vector3 boundsSize = meshFilter.sharedMesh.bounds.size;
                 Vector3 scale = transform.lossyScale;
                 float meshSize = Mathf.Max(
@@ -67,7 +103,8 @@ public class OutlineEffect : MonoBehaviour
                     boundsSize.y * scale.y,
                     boundsSize.z * scale.z
                 );
-                
+
+                // Масштабируем: маленький объект → тоньше линия
                 if (meshSize > 0f)
                     width = _outlineWidth * Mathf.Clamp(meshSize / _referenceSize, 0.2f, 3f);
             }
@@ -85,6 +122,9 @@ public class OutlineEffect : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    /// <summary>
+    /// Обновляет толщину при изменении в инспекторе (только в редакторе).
+    /// </summary>
     private void OnValidate()
     {
         if (_runtimeOutlineMaterial != null)

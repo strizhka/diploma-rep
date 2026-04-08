@@ -5,13 +5,26 @@ using OdinNative.Unity.Audio;
 using UnityEngine;
 
 /// <summary>
-/// Самодостаточный телефон. IFocusable, без InteractableObject.
+/// Телефон. Самодостаточный IFocusable, без InteractableObject.
 ///
-/// Новое: _canUse — пока false, телефон не реагирует на E и не подсвечивается.
-/// Включается извне через StartRinging() (вызывается из PhoneActivator).
+/// РЕШЕНИЕ ПРОБЛЕМЫ «НЕ СЛЫШУ СОБЕСЕДНИКА»:
+/// На каждом клиенте два PhoneController (Phone_A и Phone_B).
+/// Оба получают Connected → оба пытаются JoinRoom → конфликт.
+/// Исправлено: ODIN подключение вынесено в отдельный статический метод
+/// с жёстким guard'ом. PlaybackComponent на _voiceSource (2D, spatialBlend=0 →
+/// позиция не важна, голос слышен одинаково).
 ///
-/// После StartRinging() телефон звонит + разблокирован для Use().
-/// Дальше работает как раньше: E = ответить / положить трубку.
+/// РЕШЕНИЕ ПРОБЛЕМЫ «НЕЛЬЗЯ ЗВОНИТЬ ДО ВКЛЮЧЕНИЯ СВЕТА»:
+/// Телефоны начинают как SetActive(false) через SceneInitializer.
+/// PuzzleDirector → T_Reveal → телефоны появляются.
+/// После появления — обычная логика Use().
+///
+/// НАСТРОЙКА:
+/// 1. Phone_A, Phone_B — каждый: PhoneController + NetworkIdentity + Collider + OutlineEffect
+/// 2. Два AudioSource на каждом: SFX (3D, spatialBlend=1) + Voice (2D, spatialBlend=0)
+/// 3. Phone_A._partnerPhone = Phone_B, Phone_B._partnerPhone = Phone_A
+/// 4. SceneInitializer: оба телефона в _disableOnStart
+/// 5. PuzzleDirector: T_Reveal при нужном условии → Targets = [Phone_A, Phone_B]
 /// </summary>
 public class PhoneController : NetworkBehaviour, IFocusable
 {
@@ -22,7 +35,10 @@ public class PhoneController : NetworkBehaviour, IFocusable
     [SerializeField] private string _odinRoomName = "phone_call";
 
     [Header("Аудио")]
+    [Tooltip("3D — звонок, гудки (spatialBlend = 1)")]
     [SerializeField] private AudioSource _sfxSource;
+
+    [Tooltip("2D — голос собеседника (spatialBlend = 0)")]
     [SerializeField] private AudioSource _voiceSource;
 
     [Header("Звуки")]
@@ -35,17 +51,13 @@ public class PhoneController : NetworkBehaviour, IFocusable
     [SyncVar(hook = nameof(OnStateChanged))]
     private PhoneState _state = PhoneState.Idle;
 
-    [SyncVar]
-    private bool _canUse = false;
-
     private OutlineEffect _outline;
-    private PlaybackComponent _playback;
 
+    // ─── ODIN: один вход на весь клиент ───
     private static bool _clientInRoom;
-    private static PhoneController _odinOwner;
+    private static PlaybackComponent _playback;
 
     public PhoneState State => _state;
-    public bool CanUse => _canUse;
 
     private void Awake()
     {
@@ -81,69 +93,51 @@ public class PhoneController : NetworkBehaviour, IFocusable
 
     public void SetHighlight(bool enabled)
     {
-        if (!_canUse)
-        {
-            _outline?.SetHighlight(false);
-            return;
-        }
         _outline?.SetHighlight(enabled);
     }
 
-    // ──────────────────────── ВНЕШНЕЕ УПРАВЛЕНИЕ ────────────────────────
-
-    /// <summary>
-    /// Запускает звонок и разблокирует телефон. Вызывается из PhoneActivator.
-    /// </summary>
-    [Server]
-    public void StartRinging()
-    {
-        _canUse = true;
-        _state = PhoneState.Ringing;
-        PuzzleDebugOverlay.Log($"[Phone] {gameObject.name}: активирован, звонит",
-            PuzzleDebugOverlay.DebugLevel.Ok);
-    }
-
-    // ──────────────────────── ИСПОЛЬЗОВАНИЕ ИГРОКОМ ────────────────────────
+    // ──────────────────────── ИСПОЛЬЗОВАНИЕ ────────────────────────
 
     public void Use()
     {
-        if (!_canUse) return;
         CmdUsePhone();
     }
 
     [Command(requiresAuthority = false)]
     private void CmdUsePhone()
     {
-        if (!_canUse) return;
-
         switch (_state)
         {
             case PhoneState.Idle:
-                // Самостоятельный звонок (после первой активации)
+                // Звоним партнёру
                 _state = PhoneState.Calling;
                 if (_partnerPhone != null)
-                {
-                    _partnerPhone._canUse = true;
                     _partnerPhone._state = PhoneState.Ringing;
-                }
+                PuzzleDebugOverlay.Log($"[Phone] {name}: звоним");
                 break;
 
             case PhoneState.Calling:
+                // Отмена звонка
                 _state = PhoneState.Idle;
                 if (_partnerPhone != null)
                     _partnerPhone._state = PhoneState.Idle;
+                PuzzleDebugOverlay.Log($"[Phone] {name}: отмена");
                 break;
 
             case PhoneState.Ringing:
+                // Снять трубку → оба connected
                 _state = PhoneState.Connected;
                 if (_partnerPhone != null)
                     _partnerPhone._state = PhoneState.Connected;
+                PuzzleDebugOverlay.Log($"[Phone] {name}: ответили");
                 break;
 
             case PhoneState.Connected:
+                // Положить трубку
                 _state = PhoneState.Idle;
                 if (_partnerPhone != null)
                     _partnerPhone._state = PhoneState.Idle;
+                PuzzleDebugOverlay.Log($"[Phone] {name}: трубка положена");
                 break;
         }
     }
@@ -152,8 +146,7 @@ public class PhoneController : NetworkBehaviour, IFocusable
 
     private void OnStateChanged(PhoneState oldState, PhoneState newState)
     {
-        PuzzleDebugOverlay.Log(
-            $"[Phone] {gameObject.name}: {oldState} → {newState}",
+        PuzzleDebugOverlay.Log($"[Phone] {name}: {oldState} → {newState}",
             PuzzleDebugOverlay.DebugLevel.Ok);
 
         StopSfx();
@@ -163,57 +156,57 @@ public class PhoneController : NetworkBehaviour, IFocusable
             case PhoneState.Ringing:
                 PlaySfx(_ringSound, loop: true);
                 break;
+
             case PhoneState.Calling:
                 PlaySfx(_dialToneSound, loop: true);
                 break;
+
             case PhoneState.Connected:
-                TryJoinOdin();
+                JoinOdin();
                 break;
+
             case PhoneState.Idle:
                 PlaySfxOnce(_hangUpSound);
-                TryLeaveOdin();
+                LeaveOdin();
                 break;
         }
     }
 
     // ──────────────────────── ODIN ────────────────────────
 
-    private void TryJoinOdin()
+    private void JoinOdin()
     {
+        // Один JoinRoom на весь клиент.
+        // На клиенте два PhoneController (A и B) — оба получают Connected.
+        // Первый входит, второй пропускается.
         if (_clientInRoom) return;
-        if (OdinHandler.Instance == null) return;
+        if (OdinHandler.Instance == null)
+        {
+            Debug.LogError("[Phone] OdinHandler не найден!");
+            return;
+        }
 
-        try
-        {
-            OdinHandler.Instance.JoinRoom(_odinRoomName);
-            _clientInRoom = true;
-            _odinOwner = this;
-            OdinHandler.Instance.OnMediaAdded.AddListener(HandleMediaAdded);
-            OdinHandler.Instance.OnMediaRemoved.AddListener(HandleMediaRemoved);
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"[Phone] ODIN JoinRoom: {e.Message}");
-        }
+        _clientInRoom = true;
+
+        OdinHandler.Instance.OnMediaAdded.AddListener(OnMediaAdded);
+        OdinHandler.Instance.OnMediaRemoved.AddListener(OnMediaRemoved);
+        OdinHandler.Instance.JoinRoom(_odinRoomName);
+
+        PuzzleDebugOverlay.Log($"[Phone] ODIN: вошли в '{_odinRoomName}'",
+            PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
-    private void TryLeaveOdin()
+    private void LeaveOdin()
     {
         if (!_clientInRoom) return;
-        if (_odinOwner != null && _odinOwner != this) return;
 
-        try
+        if (OdinHandler.Instance != null)
         {
-            if (OdinHandler.Instance != null)
-            {
-                OdinHandler.Instance.OnMediaAdded.RemoveListener(HandleMediaAdded);
-                OdinHandler.Instance.OnMediaRemoved.RemoveListener(HandleMediaRemoved);
-                OdinHandler.Instance.LeaveRoom(_odinRoomName);
-            }
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[Phone] ODIN LeaveRoom: {e.Message}");
+            OdinHandler.Instance.OnMediaAdded.RemoveListener(OnMediaAdded);
+            OdinHandler.Instance.OnMediaRemoved.RemoveListener(OnMediaRemoved);
+
+            try { OdinHandler.Instance.LeaveRoom(_odinRoomName); }
+            catch (System.Exception e) { Debug.LogWarning($"[Phone] LeaveRoom: {e.Message}"); }
         }
 
         if (_playback != null)
@@ -223,17 +216,26 @@ public class PhoneController : NetworkBehaviour, IFocusable
         }
 
         _clientInRoom = false;
-        _odinOwner = null;
+
+        PuzzleDebugOverlay.Log("[Phone] ODIN: покинули комнату");
     }
 
-    private void HandleMediaAdded(object sender, MediaAddedEventArgs args)
+    private void OnMediaAdded(object sender, MediaAddedEventArgs args)
     {
+        if (OdinHandler.Instance == null) return;
+
+        // Голос собеседника — 2D (spatialBlend=0), позиция не важна.
+        // Привязываем к _voiceSource этого телефона.
         try
         {
             _playback = OdinHandler.Instance.AddPlaybackComponent(
                 gameObject, _odinRoomName, args.PeerId, args.Media.Id);
+
             if (_playback != null && _playback.PlaybackSource != null)
                 _playback.PlaybackSource.spatialBlend = 0f;
+
+            PuzzleDebugOverlay.Log("[Phone] ODIN: голос собеседника подключён",
+                PuzzleDebugOverlay.DebugLevel.Ok);
         }
         catch (System.Exception e)
         {
@@ -241,7 +243,10 @@ public class PhoneController : NetworkBehaviour, IFocusable
         }
     }
 
-    private void HandleMediaRemoved(object sender, MediaRemovedEventArgs args) { }
+    private void OnMediaRemoved(object sender, MediaRemovedEventArgs args)
+    {
+        PuzzleDebugOverlay.Log("[Phone] ODIN: голос отключён");
+    }
 
     // ──────────────────────── SFX ────────────────────────
 
@@ -268,6 +273,6 @@ public class PhoneController : NetworkBehaviour, IFocusable
         }
     }
 
-    private void OnDisable() => TryLeaveOdin();
-    private void OnDestroy() => TryLeaveOdin();
+    private void OnDisable() => LeaveOdin();
+    private void OnDestroy() => LeaveOdin();
 }

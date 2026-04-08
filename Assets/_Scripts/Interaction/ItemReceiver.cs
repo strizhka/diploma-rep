@@ -2,6 +2,7 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.Events;
 
+
 public class ItemReceiver : NetworkBehaviour
 {
     [Header("Какой предмет принимает")]
@@ -46,7 +47,7 @@ public class ItemReceiver : NetworkBehaviour
     {
         _interactable = GetComponent<InteractableObject>();
     }
-    
+
     [Server]
     public bool TryApply(string itemId)
     {
@@ -67,34 +68,41 @@ public class ItemReceiver : NetworkBehaviour
         }
 
         _isFilled = true;
-        
+
         if (_interactable != null)
             _interactable.ApplyState(_resultState);
-        
+
         if (_interactable != null && _interactionEvent != null)
             _interactionEvent.Raise(new InteractionData(_interactable.ObjectId, _resultState));
 
         PuzzleDebugOverlay.Log(
             $"[ItemReceiver] '{_interactable?.ObjectId}' ← '{itemId}' → состояние '{_resultState}'",
             PuzzleDebugOverlay.DebugLevel.Ok);
-        
+
         if (_visualPrefab != null)
-            RpcSpawnVisual();
-        
+            SpawnVisual();
+
         RpcNotifyApplied();
 
         return true;
     }
-    
+
     public bool ShouldConsume => _consumeItem;
-    
-    [ClientRpc]
-    private void RpcSpawnVisual()
+
+    [Server]
+    private void SpawnVisual()
     {
-        var go = Instantiate(_visualPrefab, transform.position + _visualOffset, transform.rotation, transform);
-        
-        foreach (var netId in go.GetComponentsInChildren<NetworkIdentity>())
-            Destroy(netId);
+        var go = Instantiate(
+            _visualPrefab,
+            transform.position + _visualOffset,
+            transform.rotation
+        );
+
+        NetworkServer.Spawn(go);
+
+        PuzzleDebugOverlay.Log(
+            $"[ItemReceiver] Визуал '{go.name}' заспавнен через NetworkServer",
+            PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
     [ClientRpc]

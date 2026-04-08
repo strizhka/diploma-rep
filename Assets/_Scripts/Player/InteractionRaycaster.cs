@@ -69,9 +69,6 @@ public class InteractionRaycaster : NetworkBehaviour
             _rayOrigin.forward * _interactionDistance,
             hit ? Color.green : Color.red);
 
-        if (hit)
-            Debug.Log($"[Ray] Попал в: {hitInfo.collider.gameObject.name}, layer={hitInfo.collider.gameObject.layer}");
-
         IFocusable newFocus = hit ? FindBestFocusable(hitInfo.collider) : null;
 
         if (!ReferenceEquals(newFocus, _currentFocus))
@@ -88,7 +85,7 @@ public class InteractionRaycaster : NetworkBehaviour
         if (phone != null) return phone;
 
         var digit = col.GetComponentInParent<DigitButton>();
-        Debug.Log($"[Ray] DigitButton на '{col.gameObject.name}': {(digit != null ? "НАЙДЕН" : "НЕ НАЙДЕН")}");
+
         if (digit != null) return digit;
 
         var inspectable = col.GetComponentInParent<InspectableObject>();

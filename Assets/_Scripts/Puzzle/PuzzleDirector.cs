@@ -58,6 +58,8 @@ public class PuzzleDirector : NetworkBehaviour
         public Dictionary<string, (string state, float time)> SourceStates = new();
     }
 
+    // ──────────────────────── LIFECYCLE ────────────────────────
+
     public override void OnStartServer()
     {
         _runtimes = new EntryRuntime[_entries.Length];
@@ -65,10 +67,11 @@ public class PuzzleDirector : NetworkBehaviour
             _runtimes[i] = new EntryRuntime();
     }
 
+    // ──────────────────────── ОСНОВНОЙ МЕТОД ────────────────────────
+
     [Server]
     public void ReportInteraction(string objectId, string newState)
     {
-        PuzzleDebugOverlay.Log($"[Director] получено: {objectId} = {newState}");
 
         if (_runtimes == null) return;
 
@@ -101,10 +104,12 @@ public class PuzzleDirector : NetworkBehaviour
             if (EvaluateEntry(entry, runtime, now))
             {
                 runtime.HasFired = true;
-                ExecuteEntry(entry, i);
+                ExecuteEntry(entry, i, newState);
             }
         }
     }
+
+    // ──────────────────────── ПРОВЕРКА УСЛОВИЙ ────────────────────────
 
     private bool EvaluateEntry(PuzzleEntry entry, EntryRuntime runtime, float now)
     {
@@ -121,7 +126,8 @@ public class PuzzleDirector : NetworkBehaviour
             if (!runtime.SourceStates.TryGetValue(sourceId, out var recorded))
                 return false;
 
-            if (recorded.state != requiredState)
+            // "*" = любое состояние (для MirrorState)
+            if (requiredState != "*" && recorded.state != requiredState)
                 return false;
         }
 
@@ -145,30 +151,38 @@ public class PuzzleDirector : NetworkBehaviour
         return true;
     }
 
-    private void ExecuteEntry(PuzzleEntry entry, int entryIndex)
+    // ──────────────────────── ВЫПОЛНЕНИЕ ЭФФЕКТА ────────────────────────
+
+    private void ExecuteEntry(PuzzleEntry entry, int entryIndex, string sourceState)
     {
         if (entry.Delay <= 0f)
-            DoExecute(entry, entryIndex);
+            DoExecute(entry, entryIndex, sourceState);
         else
-            StartCoroutine(DelayedExecute(entry, entryIndex));
+            StartCoroutine(DelayedExecute(entry, entryIndex, sourceState));
     }
 
-    private IEnumerator DelayedExecute(PuzzleEntry entry, int entryIndex)
+    private IEnumerator DelayedExecute(PuzzleEntry entry, int entryIndex, string sourceState)
     {
         yield return new WaitForSeconds(entry.Delay);
-        DoExecute(entry, entryIndex);
+        DoExecute(entry, entryIndex, sourceState);
     }
 
     [Server]
-    private void DoExecute(PuzzleEntry entry, int entryIndex)
+    private void DoExecute(PuzzleEntry entry, int entryIndex, string sourceState)
     {
+        // Если TargetState пуст — используем состояние источника (для MirrorState)
+        string effectState = string.IsNullOrEmpty(entry.TargetState)
+            ? sourceState
+            : entry.TargetState;
+        // Применяем эффект к КАЖДОЙ цели
         for (int t = 0; t < entry.Targets.Length; t++)
         {
             var target = entry.Targets[t];
             if (target == null) continue;
 
-            entry.Template.Execute(target, entry.TargetState);
+            entry.Template.Execute(target, effectState);
 
+            // Синхронизация для объектов БЕЗ InteractableObject
             if (target.GetComponent<InteractableObject>() == null)
             {
                 bool isActive = target.activeSelf;
@@ -176,12 +190,9 @@ public class PuzzleDirector : NetworkBehaviour
             }
         }
 
+        // Звук — проигрываем один раз в позиции первой цели
         if (entry.Sound != null)
             RpcPlaySound(entryIndex);
-
-        PuzzleDebugOverlay.Log(
-            $"[Director] Эффект '{entry.Template.name}' → {entry.Targets.Length} цель(ей)",
-            PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
     [ClientRpc]
@@ -205,6 +216,7 @@ public class PuzzleDirector : NetworkBehaviour
         var entry = _entries[entryIndex];
         if (entry.Sound == null) return;
 
+        // Позиция звука — первая цель
         var firstTarget = entry.Targets != null && entry.Targets.Length > 0
             ? entry.Targets[0] : null;
 
@@ -234,6 +246,7 @@ public class PuzzleDirector : NetworkBehaviour
 
             int count = entry.Sources?.Length ?? 0;
 
+            // Собираем имена целей
             string targetNames = "—";
             if (entry.Targets != null && entry.Targets.Length > 0)
             {
