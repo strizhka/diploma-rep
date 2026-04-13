@@ -154,6 +154,27 @@ public class InspectionController : MonoBehaviour
         PuzzleDebugOverlay.Log($"[Inspection] Осмотр: {obj.ObjectId} (со сцены)");
     }
 
+    public void StartSimpleInspection(SimpleInspectable obj)
+    {
+        if (_isActive || obj == null) return;
+
+        _isActive = true;
+        _isWorldMode = true;
+        _worldObject = null;
+        _inspectedTransform = obj.transform;
+
+        _originalPosition = obj.transform.position;
+        _originalRotation = obj.transform.rotation;
+        _originalParent = obj.transform.parent;
+
+        obj.SetHighlight(false);
+        SaveAndSetLayer(_inspectedTransform, _inspectionLayer);
+        PositionInFrontOfCamera();
+        EnterInspectionMode();
+
+        PuzzleDebugOverlay.Log($"[Inspection] Осмотр: {obj.ObjectId} (простой)");
+    }
+
     public void StartInventoryInspection(ItemDefinition item)
     {
         if (_isActive || item == null || item.PreviewPrefab == null) return;

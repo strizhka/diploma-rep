@@ -117,8 +117,8 @@ MonoBehaviour:
   RecvBufferSize: 7361536
   SendBufferSize: 7361536
   FastResend: 2
-  ReceiveWindowSize: 4096
-  SendWindowSize: 4096
+  ReceiveWindowSize: 512
+  SendWindowSize: 512
   MaxRetransmit: 40
   MaximizeSocketBuffers: 1
   ReliableMaxMessageSize: 294131

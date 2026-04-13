@@ -207,8 +207,16 @@ public class PlayerController : NetworkBehaviour
                 interactable.Interact();
                 break;
 
+            case SimpleInteractable simple:
+                simple.Interact();
+                break;
+
             case InspectableObject inspectable:
                 _inspectionController?.StartWorldInspection(inspectable);
+                break;
+
+            case SimpleInspectable simpleInsp:
+                _inspectionController?.StartSimpleInspection(simpleInsp);
                 break;
         }
     }

@@ -15,5 +15,5 @@ MonoBehaviour:
   ItemId: apple
   DisplayName: "\u044F\u0431\u043B\u043E\u043A\u043E"
   CanCollect: 1
-  PreviewPrefab: {fileID: 2471434266851210281, guid: 0837d45161aff3946a4c5f87726c1ede, type: 3}
+  PreviewPrefab: {fileID: 6445739592868411723, guid: f63a9a1068453604e99f43c445154f3b, type: 3}
   Icon: {fileID: 21300000, guid: f343fd4e2ba156c478499fd060452ee7, type: 3}

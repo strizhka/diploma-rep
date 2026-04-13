@@ -85,15 +85,20 @@ public class InteractionRaycaster : NetworkBehaviour
         if (phone != null) return phone;
 
         var digit = col.GetComponentInParent<DigitButton>();
-
         if (digit != null) return digit;
 
         var inspectable = col.GetComponentInParent<InspectableObject>();
         if (inspectable != null && !inspectable.IsCollected)
             return inspectable;
 
+        var simpleInsp = col.GetComponentInParent<SimpleInspectable>();
+        if (simpleInsp != null) return simpleInsp;
+
         var interactable = col.GetComponentInParent<InteractableObject>();
-        return interactable;
+        if (interactable != null) return interactable;
+
+        var simple = col.GetComponentInParent<SimpleInteractable>();
+        return simple;
     }
 
     private void ClearFocus()

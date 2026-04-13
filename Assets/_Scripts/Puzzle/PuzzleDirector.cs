@@ -13,7 +13,7 @@ public class PuzzleDirector : NetworkBehaviour
     [Serializable]
     public class PuzzleEntry
     {
-        [Tooltip("Название загадки для удобства (не влияет на логику)")]
+        [Tooltip("Название загадки")]
         public string Name;
 
         [Header("Шаблон эффекта")]
@@ -23,11 +23,16 @@ public class PuzzleDirector : NetworkBehaviour
         public InteractableObject[] Sources;
         public string[] TriggerStates;
 
+        [Header("Условия (проверяются при срабатывании)")]
+        [Tooltip("Объекты, которые должны быть в определённых состояниях. " +
+                 "Читаются напрямую из CurrentState, не через шину. " +
+                 "Работает для стартовых состояний (off, closed и т.д.)")]
+        public StateCheck[] Conditions;
+
         [Header("Цели (на кого действует)")]
-        [Tooltip("Один или несколько объектов. Эффект применяется ко всем.")]
         public GameObject[] Targets;
 
-        [Tooltip("Дополнительный параметр для SetState")]
+        [Tooltip("Параметр для SetState")]
         public string TargetState;
 
         [Header("Настройки")]
@@ -39,6 +44,16 @@ public class PuzzleDirector : NetworkBehaviour
         [Min(0.1f)]
         public float TimeWindow = 3f;
 
+        [Header("При неудаче")]
+        [Tooltip("Звук при провале проверки Conditions")]
+        public AudioClip FailSound;
+
+        [Tooltip("Сбросить Sources в начальное состояние при провале")]
+        public bool ResetSourcesOnFail;
+
+        [Tooltip("Состояние для сброса Sources")]
+        public string ResetState = "default";
+
         [Header("Звук (опционально)")]
         public AudioClip Sound;
 
@@ -46,10 +61,18 @@ public class PuzzleDirector : NetworkBehaviour
         public float SoundVolume = 1f;
     }
 
+    [Serializable]
+    public class StateCheck
+    {
+        public InteractableObject Object;
+        public string RequiredState;
+    }
+
     public enum ConditionMode
     {
         All,
-        Simultaneous
+        Simultaneous,
+        Mirror
     }
 
     private class EntryRuntime
@@ -58,8 +81,6 @@ public class PuzzleDirector : NetworkBehaviour
         public Dictionary<string, (string state, float time)> SourceStates = new();
     }
 
-    // ──────────────────────── LIFECYCLE ────────────────────────
-
     public override void OnStartServer()
     {
         _runtimes = new EntryRuntime[_entries.Length];
@@ -67,11 +88,10 @@ public class PuzzleDirector : NetworkBehaviour
             _runtimes[i] = new EntryRuntime();
     }
 
-    // ──────────────────────── ОСНОВНОЙ МЕТОД ────────────────────────
-
     [Server]
     public void ReportInteraction(string objectId, string newState)
     {
+        PuzzleDebugOverlay.Log($"[Director] получено: {objectId} = {newState}");
 
         if (_runtimes == null) return;
 
@@ -84,7 +104,6 @@ public class PuzzleDirector : NetworkBehaviour
 
             if (runtime.HasFired && entry.OneShot) continue;
             if (entry.Template == null) continue;
-            if (entry.Targets == null || entry.Targets.Length == 0) continue;
             if (entry.Sources == null || entry.Sources.Length == 0) continue;
 
             bool isRelevant = false;
@@ -99,19 +118,47 @@ public class PuzzleDirector : NetworkBehaviour
 
             if (!isRelevant) continue;
 
+            // Mirror mode
+            if (entry.Mode == ConditionMode.Mirror)
+            {
+                for (int s = 0; s < entry.Sources.Length; s++)
+                {
+                    if (entry.Sources[s] != null && entry.Sources[s].ObjectId == objectId)
+                    {
+                        if (s < entry.Targets.Length && entry.Targets[s] != null)
+                        {
+                            entry.Template.Execute(entry.Targets[s], newState);
+
+                            if (entry.Targets[s].GetComponent<InteractableObject>() == null)
+                                RpcSyncTargetActive(i, s, entry.Targets[s].activeSelf);
+
+                            if (entry.Sound != null)
+                                RpcPlaySound(i);
+                        }
+                        break;
+                    }
+                }
+                continue;
+            }
+
             runtime.SourceStates[objectId] = (newState, now);
 
-            if (EvaluateEntry(entry, runtime, now))
+            if (EvaluateSources(entry, runtime, now))
             {
-                runtime.HasFired = true;
-                ExecuteEntry(entry, i, newState);
+                if (CheckConditions(entry))
+                {
+                    runtime.HasFired = true;
+                    ExecuteEntry(entry, i, newState);
+                }
+                else
+                {
+                    OnConditionsFailed(entry, i);
+                }
             }
         }
     }
 
-    // ──────────────────────── ПРОВЕРКА УСЛОВИЙ ────────────────────────
-
-    private bool EvaluateEntry(PuzzleEntry entry, EntryRuntime runtime, float now)
+    private bool EvaluateSources(PuzzleEntry entry, EntryRuntime runtime, float now)
     {
         for (int s = 0; s < entry.Sources.Length; s++)
         {
@@ -126,7 +173,6 @@ public class PuzzleDirector : NetworkBehaviour
             if (!runtime.SourceStates.TryGetValue(sourceId, out var recorded))
                 return false;
 
-            // "*" = любое состояние (для MirrorState)
             if (requiredState != "*" && recorded.state != requiredState)
                 return false;
         }
@@ -151,7 +197,49 @@ public class PuzzleDirector : NetworkBehaviour
         return true;
     }
 
-    // ──────────────────────── ВЫПОЛНЕНИЕ ЭФФЕКТА ────────────────────────
+    [Server]
+    private bool CheckConditions(PuzzleEntry entry)
+    {
+        if (entry.Conditions == null || entry.Conditions.Length == 0)
+            return true;
+
+        foreach (var check in entry.Conditions)
+        {
+            if (check.Object == null) return false;
+
+            string current = check.Object.CurrentState;
+            if (string.IsNullOrEmpty(current))
+                current = "default";
+
+            PuzzleDebugOverlay.Log(
+                $"  [Condition] {check.Object.ObjectId} = '{current}', нужно '{check.RequiredState}'");
+
+            if (current != check.RequiredState)
+                return false;
+        }
+
+        return true;
+    }
+
+    [Server]
+    private void OnConditionsFailed(PuzzleEntry entry, int entryIndex)
+    {
+        PuzzleDebugOverlay.Log(
+            $"[Director] '{entry.Name}': условия НЕ выполнены",
+            PuzzleDebugOverlay.DebugLevel.Warning);
+
+        if (entry.FailSound != null)
+            RpcPlayFailSound(entryIndex);
+
+        if (entry.ResetSourcesOnFail)
+        {
+            foreach (var source in entry.Sources)
+            {
+                if (source != null)
+                    source.ApplyState(entry.ResetState);
+            }
+        }
+    }
 
     private void ExecuteEntry(PuzzleEntry entry, int entryIndex, string sourceState)
     {
@@ -170,11 +258,12 @@ public class PuzzleDirector : NetworkBehaviour
     [Server]
     private void DoExecute(PuzzleEntry entry, int entryIndex, string sourceState)
     {
-        // Если TargetState пуст — используем состояние источника (для MirrorState)
+        if (entry.Targets == null || entry.Targets.Length == 0) return;
+
         string effectState = string.IsNullOrEmpty(entry.TargetState)
             ? sourceState
             : entry.TargetState;
-        // Применяем эффект к КАЖДОЙ цели
+
         for (int t = 0; t < entry.Targets.Length; t++)
         {
             var target = entry.Targets[t];
@@ -182,27 +271,24 @@ public class PuzzleDirector : NetworkBehaviour
 
             entry.Template.Execute(target, effectState);
 
-            // Синхронизация для объектов БЕЗ InteractableObject
             if (target.GetComponent<InteractableObject>() == null)
-            {
-                bool isActive = target.activeSelf;
-                RpcSyncTargetActive(entryIndex, t, isActive);
-            }
+                RpcSyncTargetActive(entryIndex, t, target.activeSelf);
         }
 
-        // Звук — проигрываем один раз в позиции первой цели
         if (entry.Sound != null)
             RpcPlaySound(entryIndex);
+
+        PuzzleDebugOverlay.Log(
+            $"[Director] '{entry.Name}' → {entry.Targets.Length} цель(ей)",
+            PuzzleDebugOverlay.DebugLevel.Ok);
     }
 
     [ClientRpc]
     private void RpcSyncTargetActive(int entryIndex, int targetIndex, bool active)
     {
         if (entryIndex < 0 || entryIndex >= _entries.Length) return;
-
         var targets = _entries[entryIndex].Targets;
         if (targets == null || targetIndex < 0 || targetIndex >= targets.Length) return;
-
         var target = targets[targetIndex];
         if (target != null && target.GetComponent<InteractableObject>() == null)
             target.SetActive(active);
@@ -212,17 +298,26 @@ public class PuzzleDirector : NetworkBehaviour
     private void RpcPlaySound(int entryIndex)
     {
         if (entryIndex < 0 || entryIndex >= _entries.Length) return;
-
         var entry = _entries[entryIndex];
         if (entry.Sound == null) return;
 
-        // Позиция звука — первая цель
         var firstTarget = entry.Targets != null && entry.Targets.Length > 0
             ? entry.Targets[0] : null;
 
         if (firstTarget != null)
             AudioSource.PlayClipAtPoint(entry.Sound, firstTarget.transform.position, entry.SoundVolume);
     }
+
+    [ClientRpc]
+    private void RpcPlayFailSound(int entryIndex)
+    {
+        if (entryIndex < 0 || entryIndex >= _entries.Length) return;
+        var entry = _entries[entryIndex];
+        if (entry.FailSound == null) return;
+        AudioSource.PlayClipAtPoint(entry.FailSound, transform.position);
+    }
+
+    // ──────────────────────── ДЕБАГ ────────────────────────
 
     public struct EntryDebugInfo
     {
@@ -246,7 +341,6 @@ public class PuzzleDirector : NetworkBehaviour
 
             int count = entry.Sources?.Length ?? 0;
 
-            // Собираем имена целей
             string targetNames = "—";
             if (entry.Targets != null && entry.Targets.Length > 0)
             {

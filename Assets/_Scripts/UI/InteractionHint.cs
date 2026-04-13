@@ -1,5 +1,4 @@
-﻿using Mirror;
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -46,9 +45,6 @@ public class InteractionHint : MonoBehaviour
 
     private void Update()
     {
-        if (NetworkClient.isConnected && !NetworkClient.ready)
-            Debug.LogError("[NET] Клиент не ready — соединение потеряно!");
-
         if (_raycaster == null || _hintText == null) return;
 
         var focus = _raycaster.CurrentFocus;
@@ -107,6 +103,12 @@ public class InteractionHint : MonoBehaviour
                     return $"{_applyItemHint}";
 
                 return _interactHint;
+
+            case SimpleInteractable:
+                return _interactHint;
+
+            case SimpleInspectable:
+                return _inspectHint;
 
             default:
                 return null;
