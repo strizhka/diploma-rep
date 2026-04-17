@@ -1663,7 +1663,7 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  _interactionDistance: 5
+  _interactionDistance: 2
   _interactableLayer:
     serializedVersion: 2
     m_Bits: 8

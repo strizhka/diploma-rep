@@ -4,10 +4,6 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// ИЗМЕНЕНИЕ: ссылки на PuzzleManager заменены на PuzzleDirector.
-/// Всё остальное без изменений.
-/// </summary>
 public class EscapeRoomNetworkManager : NetworkManager
 {
     [Header("Префабы по сценам")]
@@ -15,9 +11,16 @@ public class EscapeRoomNetworkManager : NetworkManager
     [SerializeField] private GameObject _gamePlayerPrefab;
 
     [Header("Игровые сцены")]
-    [SerializeField] private string[] _gameSceneNames = { "BaseMovement" };
+    [SerializeField] private string[] _gameSceneNames = { "Tutorial" };
 
     private int _playerCount = 0;
+    private string _currentRoomCode = "";
+
+    public string CurrentRoomCode
+    {
+        get => _currentRoomCode;
+        set => _currentRoomCode = value;
+    }
 
     public override void OnServerSceneChanged(string sceneName)
     {
@@ -48,12 +51,12 @@ public class EscapeRoomNetworkManager : NetworkManager
             if (spawnPoint != null)
             {
                 player = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
-                PuzzleDebugOverlay.Log($"[Spawn] Игрок {_playerCount} заспавнен на {spawnPoint.name}");
+                PuzzleDebugOverlay.Log($"[Spawn] Игрок {_playerCount} на {spawnPoint.name}");
             }
             else
             {
                 player = Instantiate(prefab);
-                PuzzleDebugOverlay.Log($"[Spawn] Спавнер {_playerCount} не найден — спавним в (0,0,0)",
+                PuzzleDebugOverlay.Log($"[Spawn] Спавнер {_playerCount} не найден",
                     PuzzleDebugOverlay.DebugLevel.Warning);
             }
         }
@@ -65,10 +68,36 @@ public class EscapeRoomNetworkManager : NetworkManager
         _playerCount++;
         NetworkServer.AddPlayerForConnection(conn, player);
 
-        // Устанавливаем индекс игрока для per-player visibility (RoomAOnly/RoomBOnly)
         var visibility = player.GetComponent<PlayerRoomVisibility>();
         if (visibility != null)
             visibility.SetPlayerIndex(_playerCount - 1);
+
+        // Клиент переподключился → скрываем панель отключения
+        if (_playerCount >= 2 && GameManager.Instance != null)
+            GameManager.Instance.HideDisconnectPanel();
+    }
+
+    public override void OnServerDisconnect(NetworkConnectionToClient conn)
+    {
+        base.OnServerDisconnect(conn);
+        _playerCount = Mathf.Max(0, _playerCount - 1);
+
+        if (IsGameScene() && GameManager.Instance != null)
+            GameManager.Instance.ShowClientDisconnected(_currentRoomCode);
+
+        PuzzleDebugOverlay.Log("[Network] Клиент отключился",
+            PuzzleDebugOverlay.DebugLevel.Warning);
+    }
+
+    public override void OnClientDisconnect()
+    {
+        base.OnClientDisconnect();
+
+        if (!NetworkServer.active && IsGameScene() && GameManager.Instance != null)
+            GameManager.Instance.ShowHostDisconnected();
+
+        PuzzleDebugOverlay.Log("[Network] Отключение от сервера",
+            PuzzleDebugOverlay.DebugLevel.Error);
     }
 
     private Transform FindSpawnPoint(int playerIndex)
@@ -95,14 +124,7 @@ public class EscapeRoomNetworkManager : NetworkManager
 
         var transport = GetComponent<EdgegapKcpTransport>();
         if (transport != null)
-        {
             transport.Timeout = 60000;
-
-            // ВАЖНО: В Inspector на EdgegapKcpTransport также проверь:
-            // - Send Window Size = 512 (по умолчанию может быть 128)
-            // - Receive Window Size = 512
-            // Маленькие буферы → переполнение → клиент теряет синхронизацию
-        }
     }
 
     public override void OnApplicationQuit()

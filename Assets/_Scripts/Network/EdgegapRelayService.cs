@@ -54,7 +54,7 @@ public class EdgegapRelayService : Singleton<EdgegapRelayService>
 
         if (ipRequest.result != UnityWebRequest.Result.Success)
         {
-            onError?.Invoke("Не удалось определить IP");
+            onError?.Invoke("не удалось определить IP");
             yield break;
         }
 
@@ -115,7 +115,7 @@ public class EdgegapRelayService : Singleton<EdgegapRelayService>
             PuzzleDebugOverlay.Log(
                 $"[Relay] Ошибка поиска: {request.downloadHandler.text}",
                 PuzzleDebugOverlay.DebugLevel.Error);
-            onError?.Invoke("Неверный код или комната закрыта.");
+            onError?.Invoke("неверный код");
             yield break;
         }
 
@@ -154,7 +154,7 @@ public class EdgegapRelayService : Singleton<EdgegapRelayService>
 
             if (request.result != UnityWebRequest.Result.Success)
             {
-                onError?.Invoke($"Ошибка опроса: {request.error}");
+                onError?.Invoke($"ошибка готовности: {request.error}");
                 yield break;
             }
 
@@ -173,7 +173,7 @@ public class EdgegapRelayService : Singleton<EdgegapRelayService>
             yield return new WaitForSeconds(2f);
         }
 
-        onError?.Invoke("Relay не ответил за отведённое время. Попробуй ещё раз.");
+        onError?.Invoke("relay не ответил. попробуй еще раз");
     }
 
 
