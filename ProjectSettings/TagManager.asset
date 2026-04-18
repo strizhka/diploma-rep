@@ -12,6 +12,8 @@ TagManager:
   - Interactable
   - Water
   - UI
+  - RoomAOnly
+  - RoomBOnly
   - 
   - 
   - 
@@ -35,9 +37,7 @@ TagManager:
   - 
   - 
   - 
-  - 
-  - 
-  - 
+  - Inspection
   m_SortingLayers:
   - name: Default
     uniqueID: 0

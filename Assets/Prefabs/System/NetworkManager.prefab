@@ -1,0 +1,139 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2269558716826699647
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 340199741701088236}
+  - component: {fileID: 3702008112616335087}
+  - component: {fileID: 7884541745785655347}
+  - component: {fileID: 2665831969880457571}
+  m_Layer: 0
+  m_Name: NetworkManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &340199741701088236
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2269558716826699647}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3702008112616335087
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2269558716826699647}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f96d49e4065434f8e1a237c566bb2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EscapeRoomNetworkManager
+  dontDestroyOnLoad: 1
+  runInBackground: 1
+  headlessStartMode: 0
+  editorAutoStart: 0
+  sendRate: 60
+  offlineScene: Assets/Scenes/Lobby.unity
+  onlineScene: Assets/Scenes/WaitingRoom.unity
+  offlineSceneLoadDelay: 0
+  transport: {fileID: 2665831969880457571}
+  networkAddress: localhost
+  maxConnections: 2
+  disconnectInactiveConnections: 0
+  disconnectInactiveTimeout: 600
+  authenticator: {fileID: 0}
+  playerPrefab: {fileID: 1346531423616042196, guid: aaf43888a623ccc429c1f096ead620c9, type: 3}
+  autoCreatePlayer: 1
+  playerSpawnMethod: 1
+  spawnPrefabs:
+  - {fileID: 8699084346481010238, guid: ff686f8b157ed9942847d82720e68402, type: 3}
+  - {fileID: 1493238085931503692, guid: fb0c08f16d0405440b4a7628df017bb6, type: 3}
+  - {fileID: 7516369556308496547, guid: 032becbfa7e38b147bcf2ac6e9e46d29, type: 3}
+  - {fileID: 1511464255487581491, guid: 7d1d39d713edd044191355ecebc150ce, type: 3}
+  - {fileID: 5389262453222784004, guid: 090284891d7c9694cb6e43719a77e3b5, type: 3}
+  - {fileID: 4713524891515353502, guid: f814b122f2e1c274389d5096984dbd52, type: 3}
+  exceptionsDisconnect: 1
+  snapshotSettings:
+    bufferTimeMultiplier: 2
+    bufferLimit: 32
+    catchupNegativeThreshold: -1
+    catchupPositiveThreshold: 1
+    catchupSpeed: 0.019999999552965164
+    slowdownSpeed: 0.03999999910593033
+    driftEmaDuration: 1
+    dynamicAdjustment: 1
+    dynamicAdjustmentTolerance: 1
+    deliveryTimeEmaDuration: 2
+  evaluationMethod: 0
+  evaluationInterval: 3
+  timeInterpolationGui: 0
+  _waitingRoomPlayerPrefab: {fileID: 1346531423616042196, guid: aaf43888a623ccc429c1f096ead620c9, type: 3}
+  _gamePlayerPrefab: {fileID: 8699084346481010238, guid: ff686f8b157ed9942847d82720e68402, type: 3}
+  _gameSceneNames:
+  - BaseMovement
+  _extraSpawnPrefabs: []
+--- !u!114 &7884541745785655347
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2269558716826699647}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 961e13f8f75656a4f9e67c027c869e14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EdgegapRelayService
+--- !u!114 &2665831969880457571
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2269558716826699647}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c2d1e0e17f753449798fa27474d6b86b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mirror.Transports::Edgegap.EdgegapKcpTransport
+  port: 7777
+  DualMode: 1
+  NoDelay: 1
+  Interval: 10
+  Timeout: 900000
+  RecvBufferSize: 7361536
+  SendBufferSize: 7361536
+  FastResend: 2
+  ReceiveWindowSize: 512
+  SendWindowSize: 512
+  MaxRetransmit: 40
+  MaximizeSocketBuffers: 1
+  ReliableMaxMessageSize: 294131
+  UnreliableMaxMessageSize: 1181
+  debugLog: 0
+  statisticsGUI: 0
+  statisticsLog: 0
+  relayAddress: 127.0.0.1
+  relayGameServerPort: 8888
+  relayGameClientPort: 9999
+  relayGUI: 1
+  userId: 11111111
+  sessionId: 22222222

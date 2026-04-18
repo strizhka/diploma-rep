@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5e0895cc1de3794b987bbb05a81b8fb, type: 3}
+  m_Name: Sandwich
+  m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
+  ItemId: simple_sandwich
+  DisplayName: sandwich
+  CanCollect: 0
+  PreviewPrefab: {fileID: 4473534808320122279, guid: c7c5c15bc5b8dab418474cbacdd2ffaf, type: 3}
+  Icon: {fileID: 21300000, guid: 02682ce816f38e84baf5bee9babfbba4, type: 3}
