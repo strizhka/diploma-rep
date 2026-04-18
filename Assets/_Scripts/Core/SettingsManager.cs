@@ -15,17 +15,17 @@ public class SettingsManager : MonoBehaviour
     [Header("Полный экран")]
     [SerializeField] private Toggle _fullscreenToggle;
 
-    [Header("Громкость")]
-    [SerializeField] private Slider _volumeSlider;
-    [SerializeField] private TextMeshProUGUI _volumeText;
+    //[Header("Громкость")]
+    //[SerializeField] private Slider _volumeSlider;
+    //[SerializeField] private TextMeshProUGUI _volumeText;
 
-    [Header("Яркость")]
-    [SerializeField] private Slider _brightnessSlider;
-    [SerializeField] private TextMeshProUGUI _brightnessText;
+    //[Header("Яркость")]
+    //[SerializeField] private Slider _brightnessSlider;
+    //[SerializeField] private TextMeshProUGUI _brightnessText;
 
-    [Header("Яркость (Post Processing)")]
-    [Tooltip("Global Volume для управления яркостью. Если нет — яркость не регулируется.")]
-    [SerializeField] private Volume _globalVolume;
+    //[Header("Яркость (Post Processing)")]
+    //[Tooltip("Global Volume для управления яркостью. Если нет — яркость не регулируется.")]
+    //[SerializeField] private Volume _globalVolume;
 
     private Resolution[] _resolutions;
     private UnityEngine.Rendering.Universal.ColorAdjustments _colorAdjustments;
@@ -39,8 +39,8 @@ public class SettingsManager : MonoBehaviour
     {
         SetupResolutions();
         SetupFullscreen();
-        SetupVolume();
-        SetupBrightness();
+        //SetupVolume();
+        //SetupBrightness();
 
         if (_settingsPanel != null)
             _settingsPanel.SetActive(false);
@@ -59,33 +59,51 @@ public class SettingsManager : MonoBehaviour
         if (_settingsPanel != null)
             _settingsPanel.SetActive(false);
     }
-
     private void SetupResolutions()
     {
         if (_resolutionDropdown == null) return;
+        var allRes = Screen.resolutions;
+        var uniqueRes = new List<Resolution>();
+        var seen = new HashSet<(int, int)>();
 
-        _resolutions = Screen.resolutions;
+        foreach (var res in allRes)
+        {
+            var key = (res.width, res.height);
+            if (seen.Add(key))
+            {
+                uniqueRes.Add(res);
+            }
+        }
+
+        uniqueRes.Sort((a, b) => (b.width * b.height).CompareTo(a.width * b.height));
+        int count = Mathf.Min(5, uniqueRes.Count);
+        _resolutions = new Resolution[count];
+        for (int i = 0; i < count; i++)
+        {
+            _resolutions[i] = uniqueRes[i];
+        }
+
         _resolutionDropdown.ClearOptions();
-
         var options = new List<string>();
-        int current = 0;
+
+        int currentIndex = 0;
+        var current = Screen.currentResolution;
 
         for (int i = 0; i < _resolutions.Length; i++)
         {
             var r = _resolutions[i];
-            options.Add($"{r.width} x {r.height} @ {r.refreshRateRatio.value:F0}Hz");
+            options.Add($"{r.width}x{r.height}");
 
-            if (r.width == Screen.currentResolution.width &&
-                r.height == Screen.currentResolution.height)
-                current = i;
+            if (r.width == current.width && r.height == current.height)
+                currentIndex = i;
         }
 
         _resolutionDropdown.AddOptions(options);
 
-        int saved = PlayerPrefs.GetInt(PrefResolution, current);
-        _resolutionDropdown.value = saved;
-        _resolutionDropdown.RefreshShownValue();
+        int savedIndex = PlayerPrefs.GetInt(PrefResolution, currentIndex);
+        _resolutionDropdown.value = Mathf.Clamp(savedIndex, 0, _resolutions.Length - 1);
 
+        _resolutionDropdown.RefreshShownValue();
         _resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
     }
 
@@ -98,34 +116,34 @@ public class SettingsManager : MonoBehaviour
         _fullscreenToggle.onValueChanged.AddListener(OnFullscreenChanged);
     }
 
-    private void SetupVolume()
-    {
-        if (_volumeSlider == null) return;
+    //private void SetupVolume()
+    //{
+    //    if (_volumeSlider == null) return;
 
-        float saved = PlayerPrefs.GetFloat(PrefVolume, 1f);
-        _volumeSlider.value = saved;
-        AudioListener.volume = saved;
-        UpdateVolumeText(saved);
+    //    float saved = PlayerPrefs.GetFloat(PrefVolume, 1f);
+    //    _volumeSlider.value = saved;
+    //    AudioListener.volume = saved;
+    //    UpdateVolumeText(saved);
 
-        _volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
-    }
+    //    _volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
+    //}
 
-    private void SetupBrightness()
-    {
-        if (_brightnessSlider == null) return;
+    //private void SetupBrightness()
+    //{
+    //    if (_brightnessSlider == null) return;
 
-        if (_globalVolume != null)
-            _globalVolume.profile.TryGet(out _colorAdjustments);
+    //    if (_globalVolume != null)
+    //        _globalVolume.profile.TryGet(out _colorAdjustments);
 
-        float saved = PlayerPrefs.GetFloat(PrefBrightness, 0f);
-        _brightnessSlider.minValue = -1f;
-        _brightnessSlider.maxValue = 1f;
-        _brightnessSlider.value = saved;
-        ApplyBrightness(saved);
-        UpdateBrightnessText(saved);
+    //    float saved = PlayerPrefs.GetFloat(PrefBrightness, 0f);
+    //    _brightnessSlider.minValue = -1f;
+    //    _brightnessSlider.maxValue = 1f;
+    //    _brightnessSlider.value = saved;
+    //    ApplyBrightness(saved);
+    //    UpdateBrightnessText(saved);
 
-        _brightnessSlider.onValueChanged.AddListener(OnBrightnessChanged);
-    }
+    //    _brightnessSlider.onValueChanged.AddListener(OnBrightnessChanged);
+    //}
 
     public void OnResolutionChanged(int index)
     {
@@ -142,37 +160,37 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt(PrefFullscreen, isFullscreen ? 1 : 0);
     }
 
-    public void OnVolumeChanged(float value)
-    {
-        AudioListener.volume = value;
-        UpdateVolumeText(value);
-        PlayerPrefs.SetFloat(PrefVolume, value);
-    }
+    //public void OnVolumeChanged(float value)
+    //{
+    //    AudioListener.volume = value;
+    //    UpdateVolumeText(value);
+    //    PlayerPrefs.SetFloat(PrefVolume, value);
+    //}
 
-    public void OnBrightnessChanged(float value)
-    {
-        ApplyBrightness(value);
-        UpdateBrightnessText(value);
-        PlayerPrefs.SetFloat(PrefBrightness, value);
-    }
+    //public void OnBrightnessChanged(float value)
+    //{
+    //    ApplyBrightness(value);
+    //    UpdateBrightnessText(value);
+    //    PlayerPrefs.SetFloat(PrefBrightness, value);
+    //}
 
-    private void ApplyBrightness(float value)
-    {
-        if (_colorAdjustments != null)
-        {
-            _colorAdjustments.postExposure.Override(value);
-        }
-    }
+    //private void ApplyBrightness(float value)
+    //{
+    //    if (_colorAdjustments != null)
+    //    {
+    //        _colorAdjustments.postExposure.Override(value);
+    //    }
+    //}
 
-    private void UpdateVolumeText(float value)
-    {
-        if (_volumeText != null)
-            _volumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
-    }
+    //private void UpdateVolumeText(float value)
+    //{
+    //    if (_volumeText != null)
+    //        _volumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
+    //}
 
-    private void UpdateBrightnessText(float value)
-    {
-        if (_brightnessText != null)
-            _brightnessText.text = $"{value:+0.0;-0.0;0}";
-    }
+    //private void UpdateBrightnessText(float value)
+    //{
+    //    if (_brightnessText != null)
+    //        _brightnessText.text = $"{value:+0.0;-0.0;0}";
+    //}
 }

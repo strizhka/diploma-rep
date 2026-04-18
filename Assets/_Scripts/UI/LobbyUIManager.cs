@@ -89,8 +89,8 @@ public class LobbyUIManager : Singleton<LobbyUIManager>
             {
                 if (!_isConnecting) return;
 
-                var nm = NetworkManager.singleton as EscapeRoomNetworkManager;
-                if (nm != null) nm.CurrentRoomCode = code;
+                //var nm = NetworkManager.singleton as EscapeRoomNetworkManager;
+                //if (nm != null) nm.CurrentRoomCode = code;
 
                 _lobbyCanvas.FadeOut(_fade, () =>
                 {

@@ -66,6 +66,10 @@ MonoBehaviour:
   spawnPrefabs:
   - {fileID: 8699084346481010238, guid: ff686f8b157ed9942847d82720e68402, type: 3}
   - {fileID: 1493238085931503692, guid: fb0c08f16d0405440b4a7628df017bb6, type: 3}
+  - {fileID: 7516369556308496547, guid: 032becbfa7e38b147bcf2ac6e9e46d29, type: 3}
+  - {fileID: 1511464255487581491, guid: 7d1d39d713edd044191355ecebc150ce, type: 3}
+  - {fileID: 5389262453222784004, guid: 090284891d7c9694cb6e43719a77e3b5, type: 3}
+  - {fileID: 4713524891515353502, guid: f814b122f2e1c274389d5096984dbd52, type: 3}
   exceptionsDisconnect: 1
   snapshotSettings:
     bufferTimeMultiplier: 2
@@ -85,6 +89,7 @@ MonoBehaviour:
   _gamePlayerPrefab: {fileID: 8699084346481010238, guid: ff686f8b157ed9942847d82720e68402, type: 3}
   _gameSceneNames:
   - BaseMovement
+  _extraSpawnPrefabs: []
 --- !u!114 &7884541745785655347
 MonoBehaviour:
   m_ObjectHideFlags: 0
