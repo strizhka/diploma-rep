@@ -1,17 +1,15 @@
 ﻿using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
-/// Показывает контекстную подсказку при наведении на интерактивный объект.
-/// Подсказка зависит от типа объекта в прицеле.
+/// Контекстная подсказка под прицелом.
 ///
-/// НАСТРОЙКА:
-/// 1. Создай Canvas (Screen Space - Overlay) → Panel внизу по центру
-/// 2. Внутри Panel: Text (TMP или обычный)
-/// 3. На Player-префаб: добавь InteractionHint
-/// 4. _hintText = ссылка на Text
-/// 5. _raycaster = InteractionRaycaster (автоподхват если на том же GO)
+/// Два режима:
+///   1) Свободный — подсказка зависит от IFocusable в фокусе (E/F/G).
+///   2) Режим осмотра — независимо от фокуса показываем «[Q] Выход», и «[G] Взять»
+///      если осматриваемый предмет CanCollect.
+///
+/// Оптимизация: GetComponent дёргается только при смене фокуса.
 /// </summary>
 public class InteractionHint : MonoBehaviour
 {
@@ -22,8 +20,9 @@ public class InteractionHint : MonoBehaviour
     [Header("Ссылки")]
     [SerializeField] private InteractionRaycaster _raycaster;
     [SerializeField] private PlayerInventory _inventory;
+    [SerializeField] private InspectionController _inspection;
 
-    [Header("Тексты подсказок")]
+    [Header("Тексты — свободный режим")]
     [SerializeField] private string _interactHint = "[E] Взаимодействовать";
     [SerializeField] private string _inspectHint = "[E] Осмотреть";
     [SerializeField] private string _collectHint = "[G] Подобрать";
@@ -32,43 +31,87 @@ public class InteractionHint : MonoBehaviour
     [SerializeField] private string _applyItemHint = "[F] Применить";
     [SerializeField] private string _lockedHint = "Заблокировано";
 
+    [Header("Тексты — режим осмотра")]
+    [SerializeField] private string _inspectExitHint = "[Q] Выход";
+    [SerializeField] private string _inspectTakeHint = "[G] Взять";
+    [SerializeField] private string _hintsSeparator = "\n";
+
+    // Кэш компонентов текущего фокуса
+    private IFocusable _lastFocus;
+    private ItemReceiver _cachedReceiver;
+    private PedestalSlot _cachedPedestal;
+
     private void Awake()
     {
-        if (_raycaster == null)
-            _raycaster = GetComponent<InteractionRaycaster>();
-        if (_inventory == null)
-            _inventory = GetComponent<PlayerInventory>();
-
-        if (_hintPanel != null)
-            _hintPanel.SetActive(false);
+        if (_raycaster == null) _raycaster = GetComponent<InteractionRaycaster>();
+        if (_inventory == null) _inventory = GetComponent<PlayerInventory>();
+        if (_inspection == null) _inspection = GetComponent<InspectionController>();
+        if (_hintPanel != null) _hintPanel.SetActive(false);
     }
 
     private void Update()
     {
-        if (_raycaster == null || _hintText == null) return;
+        if (_hintText == null) return;
+
+        // Приоритет: режим осмотра перекрывает обычные подсказки
+        if (_inspection != null && _inspection.IsActive)
+        {
+            ShowInspectionHints();
+            return;
+        }
+
+        ShowFocusHints();
+    }
+
+    // ──────────────────────── РЕЖИМ ОСМОТРА ────────────────────────
+
+    private void ShowInspectionHints()
+    {
+        bool canCollect = _inspection.CurrentWorldObject != null
+                          && _inspection.CurrentWorldObject.CanCollect;
+
+        string hint = canCollect
+            ? $"{_inspectExitHint}{_hintsSeparator}{_inspectTakeHint}"
+            : _inspectExitHint;
+
+        SetHint(hint);
+    }
+
+    // ──────────────────────── СВОБОДНЫЙ РЕЖИМ ────────────────────────
+
+    private void ShowFocusHints()
+    {
+        if (_raycaster == null) { Hide(); return; }
 
         var focus = _raycaster.CurrentFocus;
 
-        if (focus == null)
+        if (!ReferenceEquals(focus, _lastFocus))
         {
-            Hide();
-            return;
+            _lastFocus = focus;
+            CacheComponents(focus);
         }
 
-        string hint = GetHint(focus);
+        if (focus == null) { Hide(); return; }
 
-        if (string.IsNullOrEmpty(hint))
-        {
-            Hide();
-            return;
-        }
+        string hint = GetFocusHint(focus);
+        if (string.IsNullOrEmpty(hint)) { Hide(); return; }
 
-        _hintText.text = hint;
-        if (_hintPanel != null)
-            _hintPanel.SetActive(true);
+        SetHint(hint);
     }
 
-    private string GetHint(IFocusable focus)
+    private void CacheComponents(IFocusable focus)
+    {
+        _cachedReceiver = null;
+        _cachedPedestal = null;
+
+        if (focus is Component comp)
+        {
+            _cachedReceiver = comp.GetComponent<ItemReceiver>();
+            _cachedPedestal = comp.GetComponent<PedestalSlot>();
+        }
+    }
+
+    private string GetFocusHint(IFocusable focus)
     {
         switch (focus)
         {
@@ -85,39 +128,42 @@ public class InteractionHint : MonoBehaviour
             case DigitButton:
                 return _codeButtonHint;
 
-            case InspectableObject inspectable:
-                if (inspectable.CanCollect)
-                    return $"{_inspectHint}\n{_collectHint}";
-                return _inspectHint;
+            case InspectableObject insp:
+                return insp.CanCollect
+                    ? $"{_inspectHint}{_hintsSeparator}{_collectHint}"
+                    : _inspectHint;
+
+            case SimpleInspectable siminsp:
+                return siminsp.CanCollect
+                    ? $"{_inspectHint}{_hintsSeparator}{_collectHint}"
+                    : _inspectHint;
 
             case InteractableObject interactable:
-                if (interactable.IsLocked)
-                    return _lockedHint;
+                if (interactable.IsLocked) return _lockedHint;
 
-                // Есть ли предмет в руках + ItemReceiver/PedestalSlot на объекте?
                 bool hasItem = _inventory != null && !string.IsNullOrEmpty(_inventory.HeldItemId);
-                var receiver = ((MonoBehaviour)interactable).GetComponent<ItemReceiver>();
-                var pedestal = ((MonoBehaviour)interactable).GetComponent<PedestalSlot>();
+                bool canApply = _cachedReceiver != null || _cachedPedestal != null;
 
-                if (hasItem && (receiver != null || pedestal != null))
-                    return $"{_applyItemHint}";
+                return hasItem && canApply
+                    ? $"{_interactHint}{_hintsSeparator}{_applyItemHint}"
+                    : _interactHint;
 
+            case SimpleInteractable interactable:
                 return _interactHint;
-
-            case SimpleInteractable:
-                return _interactHint;
-
-            case SimpleInspectable:
-                return _inspectHint;
 
             default:
                 return null;
         }
     }
 
+    private void SetHint(string text)
+    {
+        _hintText.text = text;
+        if (_hintPanel != null && !_hintPanel.activeSelf) _hintPanel.SetActive(true);
+    }
+
     private void Hide()
     {
-        if (_hintPanel != null)
-            _hintPanel.SetActive(false);
+        if (_hintPanel != null && _hintPanel.activeSelf) _hintPanel.SetActive(false);
     }
 }
