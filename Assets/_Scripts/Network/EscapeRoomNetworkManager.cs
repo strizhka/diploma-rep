@@ -5,6 +5,15 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Кастомный NetworkManager.
+/// Ответственности:
+/// — спавн разных Player-префабов в зависимости от сцены;
+/// — регистрация дополнительных spawnable-префабов (иначе не приходят клиенту);
+/// — логирование сетевых событий;
+/// — показ DisconnectedOverlay при разрыве соединения в игре;
+/// — нейтрализация отладочной IMGUI-панели EdgegapKcpTransport.
+/// </summary>
 public class EscapeRoomNetworkManager : NetworkManager
 {
     [Header("Префабы по сценам")]
@@ -12,206 +21,232 @@ public class EscapeRoomNetworkManager : NetworkManager
     [SerializeField] private GameObject _gamePlayerPrefab;
 
     [Header("Игровые сцены")]
-    [SerializeField] private string[] _gameSceneNames = { "BaseMovement", "Tutorial" };
+    [SerializeField] private string[] _gameSceneNames = { "Tutorial", "BaseMovement" };
 
     [Header("Дополнительные spawnable-префабы")]
-    [Tooltip("Префабы, которые могут быть заспавнены в игре через NetworkServer.Spawn() " +
-             "(например, кружка кофе из ItemReceiver, фигурки из PedestalSlot). " +
-             "Кладёшь их сюда — на старте сервера они регистрируются у Mirror, " +
-             "и спавн будет работать у клиента.")]
+    [Tooltip("Префабы, которые спавнятся в игре через NetworkServer.Spawn(): " +
+             "кружка из ItemReceiver, фигурки из PedestalSlot и т.п. " +
+             "Без регистрации клиент их не увидит.")]
     [SerializeField] private GameObject[] _extraSpawnPrefabs;
 
-    private int _playerCount = 0;
+    private int _nextPlayerIndex;
 
-    public override void OnServerSceneChanged(string sceneName)
-    {
-        base.OnServerSceneChanged(sceneName);
-        _playerCount = 0;
-
-        InteractableObjectRegistry.ClearAll();
-        PuzzleDebugOverlay.ClearLog();
-
-        if (PuzzleDebugOverlay.HasInstance)
-            PuzzleDebugOverlay.Instance.InvalidateCache();
-
-        PuzzleDebugOverlay.Log($"[Network] Сцена загружена: {sceneName}");
-        FileLogger.Write($"[Network] OnServerSceneChanged → '{sceneName}'");
-    }
-
-    public override void OnServerAddPlayer(NetworkConnectionToClient conn)
-    {
-        GameObject prefab = IsGameScene()
-            ? _gamePlayerPrefab
-            : _waitingRoomPlayerPrefab;
-
-        GameObject player;
-
-        if (IsGameScene())
-        {
-            var spawnPoint = FindSpawnPoint(_playerCount);
-
-            if (spawnPoint != null)
-            {
-                player = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
-                PuzzleDebugOverlay.Log($"[Spawn] Игрок {_playerCount} на {spawnPoint.name}");
-            }
-            else
-            {
-                player = Instantiate(prefab);
-                PuzzleDebugOverlay.Log($"[Spawn] Спавнер {_playerCount} не найден — спавним в (0,0,0)",
-                    PuzzleDebugOverlay.DebugLevel.Warning);
-            }
-        }
-        else
-        {
-            player = Instantiate(prefab);
-        }
-
-        _playerCount++;
-        NetworkServer.AddPlayerForConnection(conn, player);
-
-        var visibility = player.GetComponent<PlayerRoomVisibility>();
-        if (visibility != null)
-            visibility.SetPlayerIndex(_playerCount - 1);
-
-        FileLogger.Write($"[Network] OnServerAddPlayer connId={conn.connectionId} " +
-                         $"playerIndex={_playerCount - 1} prefab='{prefab.name}'");
-    }
-
-    private Transform FindSpawnPoint(int playerIndex)
-    {
-        var spawnPoints = FindObjectsByType<PlayerSpawnPoint>(FindObjectsSortMode.None);
-        var point = spawnPoints.FirstOrDefault(s => s.PlayerIndex == playerIndex);
-        return point?.transform;
-    }
-
-    private bool IsGameScene()
-    {
-        string current = SceneManager.GetActiveScene().name;
-        foreach (var sceneName in _gameSceneNames)
-        {
-            if (current == sceneName)
-                return true;
-        }
-        return false;
-    }
-
-    public override void Awake()
-    {
-        base.Awake();
-
-        var transport = GetComponent<EdgegapKcpTransport>();
-        if (transport != null)
-        {
-            transport.Timeout = 60000;
-        }
-
-
-        if (_extraSpawnPrefabs != null && _extraSpawnPrefabs.Length > 0)
-        {
-            int added = 0;
-            var set = new HashSet<GameObject>(spawnPrefabs);
-            foreach (var p in _extraSpawnPrefabs)
-            {
-                if (p != null && set.Add(p))
-                {
-                    spawnPrefabs.Add(p);
-                    added++;
-                }
-            }
-            if (added > 0)
-                FileLogger.Write($"[Network] +{added} extra spawn prefabs зарегистрированы " +
-                                 $"(итого spawnPrefabs={spawnPrefabs.Count})");
-        }
-    }
+    // ──────────────────────── СЕРВЕР ────────────────────────
 
     public override void OnStartServer()
     {
         base.OnStartServer();
-        FileLogger.Write($"[Network] OnStartServer (transport={Transport.active?.GetType().Name})");
-        PuzzleDebugOverlay.Log("[Network] Сервер запущен", PuzzleDebugOverlay.DebugLevel.Ok);
+        _nextPlayerIndex = 0;
+        Log($"[Network] OnStartServer (transport={Transport.active?.GetType().Name})");
     }
 
     public override void OnStopServer()
     {
-        FileLogger.Write("[Network] OnStopServer");
-        PuzzleDebugOverlay.Log("[Network] Сервер остановлен");
+        Log("[Network] OnStopServer");
         base.OnStopServer();
+    }
+
+    public override void OnServerSceneChanged(string sceneName)
+    {
+        base.OnServerSceneChanged(sceneName);
+        _nextPlayerIndex = 0;
+
+        InteractableObjectRegistry.ClearAll();
+        PuzzleDebugOverlay.ClearLog();
+        if (PuzzleDebugOverlay.HasInstance)
+            PuzzleDebugOverlay.Instance.InvalidateCache();
+
+        Log($"[Network] Server scene → {sceneName}");
+    }
+
+    public override void OnServerAddPlayer(NetworkConnectionToClient conn)
+    {
+        GameObject prefab = IsGameScene() ? _gamePlayerPrefab : _waitingRoomPlayerPrefab;
+        if (prefab == null)
+        {
+            Debug.LogError("[Network] Player-префаб не задан в EscapeRoomNetworkManager!");
+            return;
+        }
+
+        GameObject player = IsGameScene()
+            ? InstantiateAtSpawnPoint(prefab, _nextPlayerIndex)
+            : Instantiate(prefab);
+
+        NetworkServer.AddPlayerForConnection(conn, player);
+
+        if (player.TryGetComponent<PlayerRoomVisibility>(out var visibility))
+            visibility.SetPlayerIndex(_nextPlayerIndex);
+
+        Log($"[Network] OnServerAddPlayer connId={conn.connectionId} playerIndex={_nextPlayerIndex} prefab='{prefab.name}'");
+        _nextPlayerIndex++;
     }
 
     public override void OnServerConnect(NetworkConnectionToClient conn)
     {
         base.OnServerConnect(conn);
-        FileLogger.Write($"[Network] OnServerConnect connId={conn.connectionId} address={conn.address}");
-        PuzzleDebugOverlay.Log($"[Network] Клиент {conn.connectionId} подключился",
-            PuzzleDebugOverlay.DebugLevel.Ok);
+        Log($"[Network] OnServerConnect connId={conn.connectionId} address={conn.address}");
     }
 
     public override void OnServerDisconnect(NetworkConnectionToClient conn)
     {
-        FileLogger.Write($"[Network] OnServerDisconnect connId={conn.connectionId}");
-        PuzzleDebugOverlay.Log($"[Network] Клиент {conn.connectionId} отключился",
-            PuzzleDebugOverlay.DebugLevel.Warning);
+        int connId = conn.connectionId;
         base.OnServerDisconnect(conn);
+        Log($"[Network] OnServerDisconnect connId={connId}");
+
+        if (NetworkServer.active && IsGameScene() && CountNonHostConnections() == 0)
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.ShowClientDisconnected();
+        }
     }
 
     public override void OnServerError(NetworkConnectionToClient conn, TransportError error, string reason)
     {
-        FileLogger.Write($"[Network] OnServerError conn={conn?.connectionId} error={error} reason={reason}");
-        PuzzleDebugOverlay.Log($"[Network] Server error: {error} ({reason})",
-            PuzzleDebugOverlay.DebugLevel.Error);
+        Log($"[Network] OnServerError conn={conn?.connectionId} error={error} reason={reason}");
         base.OnServerError(conn, error, reason);
     }
 
     public override void OnStartClient()
     {
         base.OnStartClient();
-        FileLogger.Write("[Network] OnStartClient");
-        PuzzleDebugOverlay.Log("[Network] Клиент запущен");
+        Log("[Network] OnStartClient");
     }
 
     public override void OnStopClient()
     {
-        FileLogger.Write("[Network] OnStopClient");
-        PuzzleDebugOverlay.Log("[Network] Клиент остановлен");
+        Log("[Network] OnStopClient");
         base.OnStopClient();
     }
 
     public override void OnClientConnect()
     {
         base.OnClientConnect();
-        FileLogger.Write("[Network] OnClientConnect — соединение установлено");
-        PuzzleDebugOverlay.Log("[Network] Подключились к серверу", PuzzleDebugOverlay.DebugLevel.Ok);
+        Log("[Network] OnClientConnect");
     }
 
     public override void OnClientDisconnect()
     {
-        FileLogger.Write("[Network] OnClientDisconnect — соединение разорвано");
-        PuzzleDebugOverlay.Log("[Network] Отключение от сервера",
-            PuzzleDebugOverlay.DebugLevel.Warning);
+        Log("[Network] OnClientDisconnect");
+
+        if (IsGameScene() && !NetworkServer.active && GameManager.Instance != null)
+        {
+            GameManager.Instance.ShowHostDisconnected();
+            return;
+        }
+
         base.OnClientDisconnect();
     }
 
     public override void OnClientError(TransportError error, string reason)
     {
-        FileLogger.Write($"[Network] OnClientError error={error} reason={reason}");
-        PuzzleDebugOverlay.Log($"[Network] Client error: {error} ({reason})",
-            PuzzleDebugOverlay.DebugLevel.Error);
+        Log($"[Network] OnClientError error={error} reason={reason}");
         base.OnClientError(error, reason);
+    }
+
+    // ──────────────────────── LIFECYCLE ────────────────────────
+
+    public override void Awake()
+    {
+        base.Awake();
+
+        if (TryGetComponent<EdgegapKcpTransport>(out var transport))
+        {
+            transport.Timeout = 60000;
+            TryDisableTransportDebugGUI(transport);
+        }
+
+        RegisterExtraSpawnPrefabs();
     }
 
     public override void OnApplicationQuit()
     {
-        FileLogger.Write("[Network] OnApplicationQuit");
         StopAllCoroutines();
         base.OnApplicationQuit();
     }
 
     public override void OnDestroy()
     {
-        FileLogger.Write("[Network] EscapeRoomNetworkManager.OnDestroy");
-        var transport = GetComponent<EdgegapKcpTransport>();
-        if (transport != null)
+        // base ПЕРВЫМ: Mirror чистит listeners. Без этого при переподключении
+        // остаются «висячие» хендлеры и возникает «Multiple NetworkManagers detected».
+        base.OnDestroy();
+
+        if (TryGetComponent<EdgegapKcpTransport>(out var transport))
             transport.Shutdown();
+    }
+
+    // ──────────────────────── HELPERS ────────────────────────
+
+    private GameObject InstantiateAtSpawnPoint(GameObject prefab, int playerIndex)
+    {
+        var points = FindObjectsByType<PlayerSpawnPoint>(FindObjectsSortMode.None);
+        var point = points.FirstOrDefault(s => s.PlayerIndex == playerIndex);
+
+        if (point != null)
+            return Instantiate(prefab, point.transform.position, point.transform.rotation);
+
+        Debug.LogWarning($"[Network] SpawnPoint для игрока {playerIndex} не найден — спавним в (0,0,0)");
+        return Instantiate(prefab);
+    }
+
+    private bool IsGameScene()
+    {
+        string current = SceneManager.GetActiveScene().name;
+        foreach (var s in _gameSceneNames)
+            if (current == s) return true;
+        return false;
+    }
+
+    private int CountNonHostConnections()
+    {
+        int n = 0;
+        foreach (var c in NetworkServer.connections.Values)
+            if (c != null && c.connectionId != 0) n++;
+        return n;
+    }
+
+    private void RegisterExtraSpawnPrefabs()
+    {
+        if (_extraSpawnPrefabs == null || _extraSpawnPrefabs.Length == 0) return;
+
+        int added = 0;
+        var set = new HashSet<GameObject>(spawnPrefabs);
+        foreach (var p in _extraSpawnPrefabs)
+        {
+            if (p != null && set.Add(p))
+            {
+                spawnPrefabs.Add(p);
+                added++;
+            }
+        }
+        if (added > 0)
+            Log($"[Network] +{added} extra spawn prefabs (итого spawnPrefabs={spawnPrefabs.Count})");
+    }
+
+    private static void TryDisableTransportDebugGUI(EdgegapKcpTransport transport)
+    {
+        string[] candidateNames = { "showRelayGUI", "showGUI", "debugGUI", "OnGUIEnabled", "showDebugGUI", "relayGUIEnabled" };
+        var t = transport.GetType();
+
+        foreach (var name in candidateNames)
+        {
+            var field = t.GetField(name, System.Reflection.BindingFlags.Public
+                                       | System.Reflection.BindingFlags.NonPublic
+                                       | System.Reflection.BindingFlags.Instance);
+            if (field != null && field.FieldType == typeof(bool))
+            {
+                field.SetValue(transport, false);
+                Debug.Log($"[Network] EdgegapKcpTransport.{name} = false (debug IMGUI выключен)");
+                return;
+            }
+        }
+
+        Debug.LogWarning("[Network] Не нашёл bool-поле отладочной GUI EdgegapKcpTransport. " +
+                         "Закомментируй OnGUIRelay() вручную в EdgegapKcpTransport.OnGUI().");
+    }
+
+    private static void Log(string msg)
+    {
+        Debug.Log(msg);
+        if (PuzzleDebugOverlay.HasInstance) PuzzleDebugOverlay.Log(msg);
     }
 }
