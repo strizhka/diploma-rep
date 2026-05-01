@@ -11,7 +11,7 @@ using UnityEngine.SceneManagement;
 /// — спавн разных Player-префабов в зависимости от сцены;
 /// — регистрация дополнительных spawnable-префабов (иначе не приходят клиенту);
 /// — логирование сетевых событий;
-/// — показ DisconnectedOverlay при разрыве соединения в игре;
+/// — показ DisconnectedOverlay через GameManager при разрыве соединения в игре;
 /// — нейтрализация отладочной IMGUI-панели EdgegapKcpTransport.
 /// </summary>
 public class EscapeRoomNetworkManager : NetworkManager
@@ -68,9 +68,9 @@ public class EscapeRoomNetworkManager : NetworkManager
             return;
         }
 
-        GameObject player = IsGameScene()
-            ? InstantiateAtSpawnPoint(prefab, _nextPlayerIndex)
-            : Instantiate(prefab);
+        // Спавним в PlayerSpawnPoint по индексу — работает для ЛЮБОЙ сцены
+        // (и WaitingRoom, и Tutorial). Если точек нет — fallback в (0,0,0).
+        GameObject player = InstantiateAtSpawnPoint(prefab, _nextPlayerIndex);
 
         NetworkServer.AddPlayerForConnection(conn, player);
 
@@ -92,6 +92,12 @@ public class EscapeRoomNetworkManager : NetworkManager
         int connId = conn.connectionId;
         base.OnServerDisconnect(conn);
         Log($"[Network] OnServerDisconnect connId={connId}");
+
+        // Сбрасываем счётчик spawn-индекса, чтобы новый клиент занял
+        // освободившуюся точку (актуально для WaitingRoom: клиент ушёл,
+        // подключается новый — должен занять позицию ушедшего).
+        if (NetworkServer.active && !IsGameScene())
+            RebuildPlayerIndex();
 
         if (NetworkServer.active && IsGameScene() && CountNonHostConnections() == 0)
         {
@@ -202,6 +208,25 @@ public class EscapeRoomNetworkManager : NetworkManager
         foreach (var c in NetworkServer.connections.Values)
             if (c != null && c.connectionId != 0) n++;
         return n;
+    }
+
+    /// <summary>
+    /// Пересчитывает _nextPlayerIndex по факту: следующий подключившийся
+    /// займёт первый свободный индекс (а не следующий после ушедшего).
+    /// </summary>
+    private void RebuildPlayerIndex()
+    {
+        var occupied = new HashSet<int>();
+        foreach (var c in NetworkServer.connections.Values)
+        {
+            if (c != null && c.identity != null &&
+                c.identity.TryGetComponent<PlayerRoomVisibility>(out var v))
+                occupied.Add(v.PlayerIndex);
+        }
+
+        int next = 0;
+        while (occupied.Contains(next)) next++;
+        _nextPlayerIndex = next;
     }
 
     private void RegisterExtraSpawnPrefabs()

@@ -5,25 +5,6 @@ using System.Threading;
 using Mirror;
 using UnityEngine;
 
-/// <summary>
-/// Полное логирование в файл — каждый Debug.Log, LogWarning, LogError и Exception.
-/// Запускается автоматически до загрузки первой сцены, файлы лежат в Application.persistentDataPath/Logs.
-///
-/// Файл получает имя:
-///   diploma_YYYY-MM-DD_HH-mm-ss_pid<ID>.log
-///
-/// PID в имени даёт два разных файла когда хост и клиент запущены на одной машине
-/// (через ParrelSync или вторую копию билда). Сравнивать удобно: открыл оба и видишь, кто что делал.
-///
-/// Дополнительно ловит:
-///   - сетевые события Mirror (StartHost/StopHost, OnConnected/OnDisconnected на сервере и клиенте)
-///   - смены сцен
-///   - необработанные исключения
-///
-/// Где искать файлы:
-///   Windows: %userprofile%\AppData\LocalLow\<CompanyName>\<ProductName>\Logs\
-///   На запуске путь печатается в консоль и в сам лог.
-/// </summary>
 public static class FileLogger
 {
     private static StreamWriter _writer;
