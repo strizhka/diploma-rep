@@ -32,7 +32,7 @@ public class WaitingRoomUI : Singleton<WaitingRoomUI>
 
     private void Start()
     {
-        _otherPlayerNameText.text = "Ожидание игрока...";
+        _otherPlayerNameText.text = "ожидание игрока";
         _otherPlayerStatus.text = "";
         _waitingForOtherText.SetActive(false);
         _readyButton.interactable = false;
@@ -66,7 +66,7 @@ public class WaitingRoomUI : Singleton<WaitingRoomUI>
     {
         if (!HasInstance) return;
 
-        Instance._otherPlayerNameText.text = "Ожидание игрока...";
+        Instance._otherPlayerNameText.text = "Ожидание игрока";
         Instance._otherPlayerStatus.text = "";
         Instance._readyButton.interactable = false;
 
