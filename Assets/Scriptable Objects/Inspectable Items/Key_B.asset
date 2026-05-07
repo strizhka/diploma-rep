@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Key_B
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   ItemId: Key_B
-  DisplayName: "\u041A\u043B\u044E\u0447 <3"
+  DisplayName: "\u041A\u043B\u044E\u0447"
   CanCollect: 1
   PreviewPrefab: {fileID: 8023497727086292267, guid: cda3c7acb6aa9e045ab463a09053c42b, type: 3}
   Icon: {fileID: 21300000, guid: 2191f05c8acf37a4996516da38ed2309, type: 3}

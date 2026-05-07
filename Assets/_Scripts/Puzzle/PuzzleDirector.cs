@@ -19,23 +19,20 @@ public class PuzzleDirector : NetworkBehaviour
         [Header("Шаблон эффекта")]
         public PuzzleTemplate Template;
 
-        [Header("Источники (кто триггерит)")]
+        [Header("Источник триггера")]
         public InteractableObject[] Sources;
         public string[] TriggerStates;
 
-        [Header("Условия (проверяются при срабатывании)")]
-        [Tooltip("Объекты, которые должны быть в определённых состояниях. " +
-                 "Читаются напрямую из CurrentState, не через шину. " +
-                 "Работает для стартовых состояний (off, closed и т.д.)")]
+        [Header("Условия")]
         public StateCheck[] Conditions;
 
-        [Header("Цели (на кого действует)")]
+        [Header("На кого действует")]
         public GameObject[] Targets;
 
-        [Tooltip("Параметр для SetState")]
+        [Tooltip("Итоговое состояние цели")]
         public string TargetState;
 
-        [Header("Настройки")]
+        [Header("Параметры")]
         public float Delay;
         public bool OneShot = true;
 
@@ -45,16 +42,16 @@ public class PuzzleDirector : NetworkBehaviour
         public float TimeWindow = 3f;
 
         [Header("При неудаче")]
-        [Tooltip("Звук при провале проверки Conditions")]
+        [Tooltip("Звук при провале проверки условий")]
         public AudioClip FailSound;
 
-        [Tooltip("Сбросить Sources в начальное состояние при провале")]
+        [Tooltip("Сбросить источник в начальное состояние при провале")]
         public bool ResetSourcesOnFail;
 
-        [Tooltip("Состояние для сброса Sources")]
+        [Tooltip("Состояние для сброса источника")]
         public string ResetState = "default";
 
-        [Header("Звук (опционально)")]
+        [Header("Звук при срабатывании")]
         public AudioClip Sound;
 
         [Range(0f, 1f)]

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
@@ -89,14 +90,22 @@ public class BugReportPanel : MonoBehaviour
 
     private string BuildFormUrl()
     {
-        string scene   = System.Uri.EscapeDataString(SceneManager.GetActiveScene().name);
-        string version = System.Uri.EscapeDataString(Application.version);
-        string time    = System.Uri.EscapeDataString(System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        string scene = UnityWebRequest.EscapeURL(SceneManager.GetActiveScene().name);
+        string version = UnityWebRequest.EscapeURL(Application.version);
+        string time = UnityWebRequest.EscapeURL(System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        string cpu = UnityWebRequest.EscapeURL($"{SystemInfo.processorType} ({SystemInfo.processorCount} cores)");
+        string ram = UnityWebRequest.EscapeURL($"{SystemInfo.systemMemorySize} MB");
+        string gpu = UnityWebRequest.EscapeURL($"{SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsMemorySize} MB)");
+        string network = UnityWebRequest.EscapeURL(Application.internetReachability.ToString());
 
         return _formUrlTemplate
-            .Replace("__SCENE__",   scene)
+            .Replace("__SCENE__", scene)
             .Replace("__VERSION__", version)
-            .Replace("__TIME__",    time);
+            .Replace("__TIME__", time)
+            .Replace("__CPU__", cpu)
+            .Replace("__RAM__", ram)
+            .Replace("__GPU__", gpu)
+            .Replace("__NETWORK__", network);
     }
 
     /// <summary>Открывает указанную папку в файловом проводнике системы.</summary>

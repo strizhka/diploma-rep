@@ -54,7 +54,7 @@ MonoBehaviour:
   _openFormButton: {fileID: 6590310173964185119}
   _openLogsFolderButton: {fileID: 5528311951521569635}
   _closeButton: {fileID: 257840146444291982}
-  _formUrlTemplate: https://docs.google.com/forms/d/e/1FAIpQLScWs6zycEBw1UT0v0QvR8z7xtvlEek7n9llXDwJOusISBOyrA/viewform?usp=pp_url&entry.458242510=__SCENE__&entry.51547087=__VERSION__&entry.1469995956=__TIME__
+  _formUrlTemplate: https://docs.google.com/forms/d/e/1FAIpQLScWs6zycEBw1UT0v0QvR8z7xtvlEek7n9llXDwJOusISBOyrA/viewform?usp=pp_url&entry.458242510=__SCENE__&entry.51547087=__VERSION__&entry.1469995956=__TIME__&entry.1048798193=__CPU__&entry.583240962=__RAM__&entry.1738568392=__GPU__&entry.340619656=__NETWORK__
 --- !u!1 &1700435170891233073
 GameObject:
   m_ObjectHideFlags: 0

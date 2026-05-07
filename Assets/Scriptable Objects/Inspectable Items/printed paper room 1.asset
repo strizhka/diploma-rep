@@ -15,5 +15,5 @@ MonoBehaviour:
   ItemId: printed paper
   DisplayName: "\u0440\u0430\u0441\u043F\u0435\u0447\u0430\u0442\u043A\u0430 "
   CanCollect: 1
-  PreviewPrefab: {fileID: 0}
-  Icon: {fileID: 21300000, guid: f343fd4e2ba156c478499fd060452ee7, type: 3}
+  PreviewPrefab: {fileID: 7720533967247517569, guid: 26226e8e131f2304fb70baf844d52997, type: 3}
+  Icon: {fileID: 21300000, guid: 3b7052c4683ae5c4eb55a7848f9e5aa2, type: 3}

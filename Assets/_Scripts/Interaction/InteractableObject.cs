@@ -14,7 +14,7 @@ public class InteractableObject : NetworkBehaviour, IFocusable
     [Tooltip("Список состояний по очереди. Interact() циклически переключает их.")]
     [SerializeField] private string[] _statesCycle = { "default", "activated" };
 
-    [Header("Событие взаимодействия (локальная шина)")]
+    [Header("Событие взаимодействия")]
     [SerializeField] private GameEventInteraction _onInteractEvent;
 
     [Header("Начальное состояние")]
