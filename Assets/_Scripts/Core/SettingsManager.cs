@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -75,8 +76,12 @@ public class SettingsManager : MonoBehaviour
             }
         }
 
+        AddResolutionIfMissing(uniqueRes, 2560, 1440);
+        AddResolutionIfMissing(uniqueRes, 1920, 1080);
+        AddResolutionIfMissing(uniqueRes, 3840, 2160);
+
         uniqueRes.Sort((a, b) => (b.width * b.height).CompareTo(a.width * b.height));
-        int count = Mathf.Min(5, uniqueRes.Count);
+        int count = Mathf.Min(6, uniqueRes.Count);
         _resolutions = new Resolution[count];
         for (int i = 0; i < count; i++)
         {
@@ -114,6 +119,20 @@ public class SettingsManager : MonoBehaviour
         bool saved = PlayerPrefs.GetInt(PrefFullscreen, Screen.fullScreen ? 1 : 0) == 1;
         _fullscreenToggle.isOn = saved;
         _fullscreenToggle.onValueChanged.AddListener(OnFullscreenChanged);
+    }
+
+    private void AddResolutionIfMissing(List<Resolution> list, int width, int height)
+    {
+        if (!list.Any(r => r.width == width && r.height == height))
+        {
+            Resolution newRes = new Resolution
+            {
+                width = width,
+                height = height,
+                refreshRate = 60   // или 144, если хочешь
+            };
+            list.Add(newRes);
+        }
     }
 
     //private void SetupVolume()

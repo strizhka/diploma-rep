@@ -29331,7 +29331,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.01
   far clip plane: 1000
   field of view: 60.000004
   orthographic: 0
@@ -31459,7 +31459,7 @@ MonoBehaviour:
   Lens:
     FieldOfView: 60.000004
     OrthographicSize: 5
-    NearClipPlane: 0.3
+    NearClipPlane: 0.01
     FarClipPlane: 1000
     Dutch: 0
     ModeOverride: 0
@@ -53120,7 +53120,7 @@ MeshCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 5
-  m_Convex: 0
+  m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 28963710335737629, guid: 1b73a1dd76adf8c47b44e5557a53568f, type: 3}
 --- !u!33 &2457273536682489796
@@ -54109,7 +54109,7 @@ GameObject:
   - component: {fileID: 6023585970661868325}
   - component: {fileID: 6120563654264894986}
   - component: {fileID: 357977021150667003}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: printer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -63019,7 +63019,7 @@ MonoBehaviour:
   _outlineMaterial: {fileID: 2100000, guid: 059fa37bdbd9d6e449c8c6c10d45d43c, type: 2}
   _outlineWidth: 0.003
   _widthPropertyName: _OutlineWidth
-  _autoScaleByMesh: 1
+  _autoScaleByMesh: 0
   _referenceSize: 1
 --- !u!33 &4313784432622990942
 MeshFilter:
@@ -68154,9 +68154,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OutlineEffect
   _outlineMaterial: {fileID: 2100000, guid: 8aaaab7251152b446b29740c4b5810a6, type: 2}
-  _outlineWidth: 0.003
+  _outlineWidth: 0.01
   _widthPropertyName: _OutlineWidth
-  _autoScaleByMesh: 1
+  _autoScaleByMesh: 0
   _referenceSize: 1
 --- !u!114 &6185570049431596923
 MonoBehaviour:
@@ -71816,9 +71816,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OutlineEffect
   _outlineMaterial: {fileID: 2100000, guid: 8aaaab7251152b446b29740c4b5810a6, type: 2}
-  _outlineWidth: 0.003
+  _outlineWidth: 0.01
   _widthPropertyName: _OutlineWidth
-  _autoScaleByMesh: 1
+  _autoScaleByMesh: 0
   _referenceSize: 1
 --- !u!114 &7100098245053371960
 MonoBehaviour:
@@ -78729,9 +78729,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OutlineEffect
   _outlineMaterial: {fileID: 2100000, guid: 8aaaab7251152b446b29740c4b5810a6, type: 2}
-  _outlineWidth: 0.003
+  _outlineWidth: 0.01
   _widthPropertyName: _OutlineWidth
-  _autoScaleByMesh: 1
+  _autoScaleByMesh: 0
   _referenceSize: 1
 --- !u!114 &8501689189187901365
 MonoBehaviour:
